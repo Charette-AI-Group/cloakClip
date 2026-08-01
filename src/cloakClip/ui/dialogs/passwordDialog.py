@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from functools import partial
+
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -9,15 +11,20 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
+
+from cloakClip.services import passwordHistoryService
 
 
 class PasswordDialog(QDialog):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Enter Password")
+        self.chosenPassword: str | None = None
+        self.lastPasswordButton: QPushButton | None = None
 
         layout = QVBoxLayout(self)
 
@@ -33,6 +40,13 @@ class PasswordDialog(QDialog):
         self.showPasswordCheck = QCheckBox("Show password")
         self.showPasswordCheck.toggled.connect(self.onShowPasswordToggled)
         layout.addWidget(self.showPasswordCheck)
+
+        passwords = passwordHistoryService.loadPasswords()
+        if passwords:
+            mask = passwordHistoryService.maskPassword(passwords[0])
+            self.lastPasswordButton = QPushButton(f"Use Last Password ({mask})")
+            self.lastPasswordButton.clicked.connect(partial(self.onUseLastPassword, passwords[0]))
+            layout.addWidget(self.lastPasswordButton)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -51,8 +65,12 @@ class PasswordDialog(QDialog):
         echoMode = QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
         self.passwordEdit.setEchoMode(echoMode)
 
+    def onUseLastPassword(self, password: str) -> None:
+        self.chosenPassword = password
+        self.accept()
+
     def password(self) -> str:
-        return self.passwordEdit.text()
+        return self.chosenPassword or self.passwordEdit.text()
 
     @staticmethod
     def getPassword(parent: QWidget | None = None) -> str | None:

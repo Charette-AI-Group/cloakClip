@@ -12,7 +12,7 @@ The window has two tabs for two ways of working.
 
 ## The Password menu
 
-Passwords live in the **Password** menu (or press **Ctrl+P** for a new one). The menu shows the last password used and up to ten recent ones, each displayed only as its first and last character (`h...!`) to jog your memory without revealing it. Picking an entry makes it the active password — shown masked in the status bar — and it stays active for every Cloak/Uncloak until you pick another. If no password is selected, clicking Cloak or Uncloak simply opens the password dialog.
+Passwords live in the **Password** menu (or press **Ctrl+P** for a new one). The menu shows the last password used and up to ten recent ones, each displayed only as its first and last character (`h...!`) to jog your memory without revealing it. Picking an entry makes it the active password — shown masked in the status bar — and it stays active for every Cloak/Uncloak until you pick another. If no password is selected, clicking Cloak or Uncloak simply opens the password dialog, which also offers a one-click **Use Last Password (h...!)** button when a history exists.
 
 A password only enters the history after it *works* — a successful cloak or uncloak — so typos and wrong guesses are never remembered.
 
