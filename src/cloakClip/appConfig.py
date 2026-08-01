@@ -16,5 +16,5 @@ copyrightHolder = "Charette AI Group, LLC"
 projectRoot = Path(__file__).resolve().parents[2]
 resourcesDir = Path(__file__).resolve().parent / "resources"
 windowTitle = appName
-defaultWindowWidth = 800
-defaultWindowHeight = 600
+defaultWindowWidth = 560
+defaultWindowHeight = 440

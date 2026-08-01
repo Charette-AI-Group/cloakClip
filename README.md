@@ -1,6 +1,20 @@
 # CloakClip
 
-Encrypt and decrypt clipboard text with a password
+Encrypt ("cloak") and decrypt ("uncloak") the text in the Windows clipboard with a shared password — a friendly GUI replacement for the original `encrypt.ps1` / `decrypt.ps1` PowerShell scripts.
+
+## Usage
+
+1. Copy any text (Ctrl+C) — it appears in the clipboard preview.
+2. Type the shared password.
+3. Click **Cloak Clipboard** — the clipboard now holds an encrypted Base64 string; paste it anywhere.
+4. To read one: copy the encrypted string, enter the same password, click **Uncloak Clipboard**, then paste the plain text.
+5. **Clear Clipboard** wipes the clipboard after you are done pasting sensitive text.
+
+A wrong password (or non-encrypted clipboard text) shows a message in the status bar and leaves the clipboard untouched.
+
+## Compatibility
+
+The scheme is identical to the PowerShell scripts (AES-256-CBC, key = SHA-256 of the password, random 16-byte IV prepended, Base64): strings encrypted by either tool decrypt in the other. As with the scripts, the key derivation is a single unsalted SHA-256 — use a long password.
 
 ## One-time setup
 
