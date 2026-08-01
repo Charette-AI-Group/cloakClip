@@ -1,23 +1,30 @@
 """Tests for the main window cloak/uncloak workflow.
 
 clearHistory is always monkeypatched: the real call would wipe the Win+V
-history of whoever runs the suite.
+history of whoever runs the suite. The password history file is redirected
+to a temp folder so tests never touch the real one.
 """
 
 from __future__ import annotations
 
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QLineEdit
 
-from cloakClip.services import clipboardService
+from cloakClip import appConfig
+from cloakClip.services import clipboardService, passwordHistoryService
 from cloakClip.services.cryptoService import decryptText, encryptText
+from cloakClip.ui.dialogs.passwordDialog import PasswordDialog
 from cloakClip.ui.mainWindow import MainWindow
 
 
 def setClipboard(qtbot, text: str) -> None:
     # The shared OS clipboard can be held by another process; keep trying.
     qtbot.waitUntil(lambda: clipboardService.writeText(text), timeout=5000)
+
+
+@pytest.fixture(autouse=True)
+def isolatedPasswordHistory(tmp_path, monkeypatch):
+    monkeypatch.setattr(appConfig, "passwordHistoryFile", tmp_path / "passwordHistory.bin")
 
 
 @pytest.fixture
@@ -44,18 +51,89 @@ def testMainWindowOpens(window) -> None:
     assert window.isVisible()
     assert window.windowTitle() == "CloakClip"
     assert window.statusBar().currentMessage() == "Ready"
+    assert window.passwordLabel.text() == "No password selected"
 
 
 def testMenuBarStructure(window) -> None:
     menuTitles = [action.text() for action in window.menuBar().actions()]
-    assert menuTitles == ["&File", "&Help"]
+    assert menuTitles == ["&File", "&Password", "&Help"]
     assert [a.text() for a in window.fileMenu.actions()] == ["E&xit"]
     assert [a.text() for a in window.helpMenu.actions()] == ["&About"]
 
 
+def testPasswordMenuEmptyState(window) -> None:
+    window.rebuildPasswordMenu()
+    itemTexts = [a.text() for a in window.passwordMenu.actions() if not a.isSeparator()]
+
+    assert itemTexts == [
+        "No Passwords Remembered Yet", "&New Password...", "Clear Password History",
+    ]
+    clearAction = window.passwordMenu.actions()[-1]
+    assert not clearAction.isEnabled()
+
+
+def testPasswordMenuListsMaskedHistory(window) -> None:
+    passwordHistoryService.rememberPassword("older-password!")
+    passwordHistoryService.rememberPassword("hunter2!")
+    window.rebuildPasswordMenu()
+
+    itemTexts = [a.text() for a in window.passwordMenu.actions() if not a.isSeparator()]
+    assert itemTexts == [
+        "Last Password Used (h...!)",
+        "h...!",
+        "o...!",
+        "&New Password...",
+        "Clear Password History",
+    ]
+    # Only masks appear — never a full password.
+    assert all("hunter2!" not in text and "older-password!" not in text for text in itemTexts)
+
+
+def testPickingMenuEntrySelectsPassword(window) -> None:
+    passwordHistoryService.rememberPassword("older-password!")
+    passwordHistoryService.rememberPassword("hunter2!")
+    window.rebuildPasswordMenu()
+
+    olderEntry = [a for a in window.passwordMenu.actions() if a.text() == "o...!"][0]
+    olderEntry.trigger()
+
+    assert window.activePassword == "older-password!"
+    assert window.passwordLabel.text() == "Password: o...!"
+
+
+def testLastPasswordUsedEntrySelectsMostRecent(window) -> None:
+    passwordHistoryService.rememberPassword("older-password!")
+    passwordHistoryService.rememberPassword("hunter2!")
+    window.rebuildPasswordMenu()
+
+    window.passwordMenu.actions()[0].trigger()
+
+    assert window.activePassword == "hunter2!"
+
+
+def testNewPasswordDialogSelectsPassword(window, monkeypatch) -> None:
+    monkeypatch.setattr(PasswordDialog, "getPassword", staticmethod(lambda parent=None: "fresh-pw"))
+
+    window.onNewPassword()
+
+    assert window.activePassword == "fresh-pw"
+    assert window.passwordLabel.text() == "Password: f...w"
+
+
+def testClearPasswordHistory(window) -> None:
+    passwordHistoryService.rememberPassword("hunter2!")
+    window.usePassword("hunter2!")
+
+    window.onClearPasswordHistory()
+
+    assert passwordHistoryService.loadPasswords() == []
+    assert window.activePassword is None
+    assert window.passwordLabel.text() == "No password selected"
+
+
 def testCloakShowsResultAndCopiesIt(window, qtbot) -> None:
     window.inputEdit.setPlainText("my secret note")
-    window.passwordEdit.setText("hunter2!")
+    window.usePassword("hunter2!")
 
     qtbot.mouseClick(window.cloakButton, Qt.MouseButton.LeftButton)
 
@@ -65,11 +143,20 @@ def testCloakShowsResultAndCopiesIt(window, qtbot) -> None:
     assert "Cloaked and copied" in window.statusBar().currentMessage()
 
 
+def testCloakRemembersThePassword(window, qtbot) -> None:
+    window.inputEdit.setPlainText("note")
+    window.usePassword("brand-new-pw!")
+
+    qtbot.mouseClick(window.cloakButton, Qt.MouseButton.LeftButton)
+
+    assert passwordHistoryService.loadPasswords() == ["brand-new-pw!"]
+
+
 def testUncloakShowsPlainTextWithoutTouchingClipboard(window, qtbot) -> None:
     cloaked = encryptText("the original", "pw123")
     setClipboard(qtbot, cloaked)
     window.inputEdit.setPlainText(cloaked)
-    window.passwordEdit.setText("pw123")
+    window.usePassword("pw123")
 
     qtbot.mouseClick(window.uncloakButton, Qt.MouseButton.LeftButton)
 
@@ -79,28 +166,39 @@ def testUncloakShowsPlainTextWithoutTouchingClipboard(window, qtbot) -> None:
     assert "click Copy" in window.statusBar().currentMessage()
 
 
-def testUncloakWrongPasswordShowsError(window, qtbot) -> None:
+def testWrongPasswordShowsErrorAndIsNotRemembered(window, qtbot) -> None:
     window.inputEdit.setPlainText(encryptText("the original", "right password"))
-    window.passwordEdit.setText("wrong password")
+    window.usePassword("wrong password")
 
     qtbot.mouseClick(window.uncloakButton, Qt.MouseButton.LeftButton)
 
     assert window.outputEdit.toPlainText() == ""
     assert "Wrong password" in window.statusBar().currentMessage()
+    assert passwordHistoryService.loadPasswords() == []
 
 
-def testCloakWithoutPasswordShowsHint(window, qtbot) -> None:
+def testCloakWithoutPasswordPromptsDialog(window, qtbot, monkeypatch) -> None:
+    monkeypatch.setattr(PasswordDialog, "getPassword", staticmethod(lambda parent=None: "typed-pw"))
+    window.inputEdit.setPlainText("something")
+
+    qtbot.mouseClick(window.cloakButton, Qt.MouseButton.LeftButton)
+
+    assert decryptText(window.outputEdit.toPlainText(), "typed-pw") == "something"
+
+
+def testCloakWithCancelledDialogShowsHint(window, qtbot, monkeypatch) -> None:
+    monkeypatch.setattr(PasswordDialog, "getPassword", staticmethod(lambda parent=None: None))
     window.inputEdit.setPlainText("something")
 
     qtbot.mouseClick(window.cloakButton, Qt.MouseButton.LeftButton)
 
     assert window.outputEdit.toPlainText() == ""
-    assert window.statusBar().currentMessage() == "Enter a password first."
+    assert "Enter a password first" in window.statusBar().currentMessage()
 
 
 def testCloakWithEmptyInputShowsHint(window, qtbot) -> None:
     window.inputEdit.setPlainText("")
-    window.passwordEdit.setText("pw")
+    window.usePassword("pw")
 
     qtbot.mouseClick(window.cloakButton, Qt.MouseButton.LeftButton)
 
@@ -109,7 +207,7 @@ def testCloakWithEmptyInputShowsHint(window, qtbot) -> None:
 
 def testCopyPutsUncloakedResultOnClipboard(window, qtbot) -> None:
     window.inputEdit.setPlainText(encryptText("copy me", "pw"))
-    window.passwordEdit.setText("pw")
+    window.usePassword("pw")
     qtbot.mouseClick(window.uncloakButton, Qt.MouseButton.LeftButton)
 
     qtbot.mouseClick(window.copyButton, Qt.MouseButton.LeftButton)
@@ -158,7 +256,7 @@ def testClearEmptiesClipboardAndHistory(window, qtbot, historyCalls) -> None:
 
 def testClosingClearsAnUncloakedSecret(window, qtbot) -> None:
     window.inputEdit.setPlainText(encryptText("sensitive", "pw"))
-    window.passwordEdit.setText("pw")
+    window.usePassword("pw")
     qtbot.mouseClick(window.uncloakButton, Qt.MouseButton.LeftButton)
     qtbot.mouseClick(window.copyButton, Qt.MouseButton.LeftButton)
     qtbot.waitUntil(lambda: clipboardService.readText() == "sensitive", timeout=5000)
@@ -170,7 +268,7 @@ def testClosingClearsAnUncloakedSecret(window, qtbot) -> None:
 
 def testClosingKeepsCloakedTextPasteable(window, qtbot) -> None:
     window.inputEdit.setPlainText("not secret once encrypted")
-    window.passwordEdit.setText("pw")
+    window.usePassword("pw")
     qtbot.mouseClick(window.cloakButton, Qt.MouseButton.LeftButton)
     cloaked = window.outputEdit.toPlainText()
     qtbot.waitUntil(lambda: clipboardService.readText() == cloaked, timeout=5000)
@@ -186,14 +284,6 @@ def testClosingLeavesUnrelatedClipboardAlone(window, qtbot) -> None:
     window.close()
 
     assert clipboardService.readText() == "the user's own clipboard content"
-
-
-def testShowPasswordToggle(window) -> None:
-    assert window.passwordEdit.echoMode() == QLineEdit.EchoMode.Password
-    window.showPasswordCheck.setChecked(True)
-    assert window.passwordEdit.echoMode() == QLineEdit.EchoMode.Normal
-    window.showPasswordCheck.setChecked(False)
-    assert window.passwordEdit.echoMode() == QLineEdit.EchoMode.Password
 
 
 def testAboutTextContents(window) -> None:

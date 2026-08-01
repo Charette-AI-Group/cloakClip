@@ -6,9 +6,17 @@ Encrypt ("cloak") and decrypt ("uncloak") text with a shared password — a frie
 
 Anything you copy appears in the top box automatically, unless you are typing in it. You can also type straight into the box, or fill it with **Paste**.
 
-**To protect text:** put it in the top box, enter the password, click **Cloak**. The encrypted string appears in **Result** and is copied to the clipboard, ready to paste.
+**To protect text:** put it in the top box, pick a password, click **Cloak**. The encrypted string appears in **Result** and is copied to the clipboard, ready to paste.
 
-**To read protected text:** copy the encrypted string, enter the same password, click **Uncloak**. The original text appears in **Result** — on screen only. Click **Copy** if you actually need to paste it somewhere.
+**To read protected text:** copy the encrypted string, pick the same password, click **Uncloak**. The original text appears in **Result** — on screen only. Click **Copy** if you actually need to paste it somewhere.
+
+## The Password menu
+
+Passwords live in the **Password** menu (or press **Ctrl+P** for a new one). The menu shows the last password used and up to ten recent ones, each displayed only as its first and last character (`h...!`) to jog your memory without revealing it. Picking an entry makes it the active password — shown masked in the status bar — and it stays active for every Cloak/Uncloak until you pick another. If no password is selected, clicking Cloak or Uncloak simply opens the password dialog.
+
+A password only enters the history after it *works* — a successful cloak or uncloak — so typos and wrong guesses are never remembered.
+
+The history is stored encrypted with Windows DPAPI in `%APPDATA%\CloakClip\passwordHistory.bin`, tied to your Windows account: unreadable from other accounts or machines, but decryptable by any program running as you. If you don't want passwords kept at all, use **Password > Clear Password History**.
 
 A wrong password, or text that was not encrypted, shows a message in the status bar and changes nothing.
 
