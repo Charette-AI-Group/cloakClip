@@ -6,7 +6,7 @@ from pathlib import Path
 
 appName = "CloakClip"
 appVersion = "0.1.0"
-organizationName = "SoloDev"
+organizationName = "Charette-AI-Group"
 
 # Help > About contents
 editorName = "Francois Charette"
