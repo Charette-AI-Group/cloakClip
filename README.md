@@ -4,11 +4,11 @@ Encrypt ("cloak") and decrypt ("uncloak") text with a shared password — a frie
 
 ## Usage
 
-Anything you copy appears in the top box automatically, unless you are typing in it. You can also type straight into the box, or fill it with **Paste**.
+The window has two tabs for two ways of working.
 
-**To protect text:** put it in the top box, pick a password, click **Cloak**. The encrypted string appears in **Result** and is copied to the clipboard, ready to paste.
+**Clipboard tab** — the one-click flow, like the original scripts. The box shows whatever is on the clipboard. Copy text anywhere, click **Cloak Clipboard**, and the clipboard now holds the encrypted string — paste it anywhere. Copy an encrypted string and click **Uncloak Clipboard**, and the clipboard holds the original text, ready to paste (marked secret: kept out of Win+V history and cleared when you close the app).
 
-**To read protected text:** copy the encrypted string, pick the same password, click **Uncloak**. The original text appears in **Result** — on screen only. Click **Copy** if you actually need to paste it somewhere.
+**Manual tab** — full control, nothing touches the clipboard unless you say so. Type or **Paste** text into the input box, click **Cloak** or **Uncloak**, and the result appears below — on screen only. Click **Copy** when you actually want it on the clipboard. Reading a secret this way means it never reaches the clipboard at all.
 
 ## The Password menu
 
@@ -20,14 +20,14 @@ The history is stored encrypted with Windows DPAPI in `%APPDATA%\CloakClip\passw
 
 A wrong password, or text that was not encrypted, shows a message in the status bar and changes nothing.
 
-**Clear Clipboard & History** empties the clipboard and purges Windows clipboard history (Win+V), which is the way to clean up plain text that *other* apps copied — for example the password you copied out of an email in order to cloak it. Items you pinned in Win+V are kept.
+**Clear Clipboard & History** (on the Clipboard tab) empties the clipboard and purges Windows clipboard history (Win+V), which is the way to clean up plain text that *other* apps copied — for example the password you copied out of an email in order to cloak it. Items you pinned in Win+V are kept.
 
 ## How your secrets are protected
 
 Windows keeps a history of everything copied (Win+V) and can sync it to the cloud, so a decrypted secret sitting on the clipboard normally outlives both the paste and the app. CloakClip avoids that three ways:
 
-- **Uncloaking does not touch the clipboard.** The plain text is only displayed. If you just need to read a message, it never leaves the window.
-- **When you do click Copy, the text is marked secret** using the same Windows clipboard formats password managers use, so Windows keeps it out of clipboard history and cloud sync. It still pastes normally.
+- **The Manual tab keeps secrets off the clipboard entirely.** Uncloaked text is only displayed; if you just need to read a message, it never leaves the window.
+- **Any uncloaked text that does reach the clipboard is marked secret** (both the Clipboard tab's Uncloak and the Manual tab's Copy) using the same Windows clipboard formats password managers use, so Windows keeps it out of clipboard history and cloud sync. It still pastes normally.
 - **Closing the app clears a copied secret** from the clipboard. Cloaked text is left alone, since it is encrypted and you may still want to paste it.
 
 ## Compatibility

@@ -1,26 +1,18 @@
-"""Main application window — cloak and uncloak text."""
+"""Main application window — tabs, menus, and shared password state."""
 
 from __future__ import annotations
 
 import datetime
 from functools import partial
 
-from PySide6.QtGui import QAction, QCloseEvent, QGuiApplication, QKeySequence
-from PySide6.QtWidgets import (
-    QHBoxLayout,
-    QLabel,
-    QMainWindow,
-    QMessageBox,
-    QPlainTextEdit,
-    QPushButton,
-    QVBoxLayout,
-    QWidget,
-)
+from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
+from PySide6.QtWidgets import QLabel, QMainWindow, QMessageBox, QTabWidget
 
 from cloakClip import appConfig
 from cloakClip.services import clipboardService, passwordHistoryService
-from cloakClip.services.cryptoService import CryptoError, decryptText, encryptText
+from cloakClip.ui.clipboardTab import ClipboardTab
 from cloakClip.ui.dialogs.passwordDialog import PasswordDialog
+from cloakClip.ui.manualTab import ManualTab
 
 
 class MainWindow(QMainWindow):
@@ -33,14 +25,19 @@ class MainWindow(QMainWindow):
         # its own writes from the user's copies and clean up secrets on exit.
         self.lastClipboardWrite: str | None = None
         self.lastWriteWasSecret = False
-        self.resultIsSecret = False
         self.activePassword: str | None = None
 
         self.buildMenuBar()
-        self.buildCentralWidget()
-        self._connectSignals()
 
-        self.inputEdit.setPlainText(clipboardService.readText())
+        self.tabWidget = QTabWidget()
+        self.clipboardTab = ClipboardTab(self)
+        self.manualTab = ManualTab(self)
+        self.tabWidget.addTab(self.clipboardTab, "&Clipboard")
+        self.tabWidget.addTab(self.manualTab, "&Manual")
+        self.setCentralWidget(self.tabWidget)
+
+        self.passwordLabel = QLabel("No password selected")
+        self.statusBar().addPermanentWidget(self.passwordLabel)
         self.statusBar().showMessage("Ready")
 
     def buildMenuBar(self) -> None:
@@ -89,75 +86,13 @@ class MainWindow(QMainWindow):
         clearAction.setEnabled(bool(passwords))
         clearAction.triggered.connect(self.onClearPasswordHistory)
 
-    def buildCentralWidget(self) -> None:
-        centralWidget = QWidget()
-        layout = QVBoxLayout(centralWidget)
-
-        inputHeader = QHBoxLayout()
-        inputHeader.addWidget(QLabel("Text to cloak or uncloak:"))
-        inputHeader.addStretch()
-        self.pasteButton = QPushButton("Paste")
-        inputHeader.addWidget(self.pasteButton)
-        layout.addLayout(inputHeader)
-
-        self.inputEdit = QPlainTextEdit()
-        self.inputEdit.setPlaceholderText(
-            "Type here, or copy text anywhere and it appears automatically."
-        )
-        layout.addWidget(self.inputEdit)
-
-        actionRow = QHBoxLayout()
-        self.cloakButton = QPushButton("Cloak")
-        self.uncloakButton = QPushButton("Uncloak")
-        actionRow.addWidget(self.cloakButton)
-        actionRow.addWidget(self.uncloakButton)
-        layout.addLayout(actionRow)
-
-        resultHeader = QHBoxLayout()
-        resultHeader.addWidget(QLabel("Result:"))
-        resultHeader.addStretch()
-        self.copyButton = QPushButton("Copy")
-        resultHeader.addWidget(self.copyButton)
-        layout.addLayout(resultHeader)
-
-        self.outputEdit = QPlainTextEdit()
-        self.outputEdit.setReadOnly(True)
-        self.outputEdit.setPlaceholderText("The cloaked or uncloaked text appears here.")
-        layout.addWidget(self.outputEdit)
-
-        self.clearButton = QPushButton("Clear Clipboard && History")
-        layout.addWidget(self.clearButton)
-
-        self.setCentralWidget(centralWidget)
-
-        self.passwordLabel = QLabel("No password selected")
-        self.statusBar().addPermanentWidget(self.passwordLabel)
-
-    def _connectSignals(self) -> None:
-        self.cloakButton.clicked.connect(self.onCloakClicked)
-        self.uncloakButton.clicked.connect(self.onUncloakClicked)
-        self.pasteButton.clicked.connect(self.onPasteClicked)
-        self.copyButton.clicked.connect(self.onCopyClicked)
-        self.clearButton.clicked.connect(self.onClearClicked)
-        QGuiApplication.clipboard().dataChanged.connect(self.onClipboardChanged)
-
-    def onClipboardChanged(self) -> None:
-        # Follow the user's copies, but never overwrite what they are typing
-        # or echo back what CloakClip just wrote itself.
-        if self.inputEdit.hasFocus():
-            return
-        text = clipboardService.readText()
-        if text == self.lastClipboardWrite:
-            return
-        self.inputEdit.setPlainText(text)
-
     # ------------------------------------------------------------ passwords
 
     def usePassword(self, password: str) -> None:
         self.activePassword = password
         mask = passwordHistoryService.maskPassword(password)
         self.passwordLabel.setText(f"Password: {mask}")
-        self.statusBar().showMessage(f"Password {mask} selected.")
+        self.statusMessage(f"Password {mask} selected.")
 
     def onNewPassword(self) -> None:
         password = PasswordDialog.getPassword(self)
@@ -168,108 +103,46 @@ class MainWindow(QMainWindow):
         passwordHistoryService.clearPasswords()
         self.activePassword = None
         self.passwordLabel.setText("No password selected")
-        self.statusBar().showMessage("Password history cleared.")
+        self.statusMessage("Password history cleared.")
 
     def ensurePassword(self) -> str | None:
         if self.activePassword:
             return self.activePassword
         self.onNewPassword()
         if self.activePassword is None:
-            self.statusBar().showMessage("Enter a password first (Password menu, Ctrl+P).")
+            self.statusMessage("Enter a password first (Password menu, Ctrl+P).")
         return self.activePassword
 
     def rememberActivePassword(self) -> None:
         if self.activePassword:
             passwordHistoryService.rememberPassword(self.activePassword)
 
-    # ------------------------------------------------------------- actions
+    # ----------------------------------------------------- shared clipboard
 
-    def checkedInput(self, emptyMessage: str) -> str | None:
-        text = self.inputEdit.toPlainText()
-        if not text:
-            self.statusBar().showMessage(emptyMessage)
-            return None
-        return text
+    def statusMessage(self, message: str) -> None:
+        self.statusBar().showMessage(message)
 
     def writeClipboard(self, text: str, secret: bool) -> bool:
         if not clipboardService.writeText(text, secret=secret):
-            self.statusBar().showMessage("The clipboard is busy — please try again.")
+            self.statusMessage("The clipboard is busy — please try again.")
             return False
         self.lastClipboardWrite = text
         self.lastWriteWasSecret = secret
         return True
 
-    def showResult(self, text: str, secret: bool) -> None:
-        self.outputEdit.setPlainText(text)
-        self.resultIsSecret = secret
-
-    def onCloakClicked(self) -> None:
-        text = self.checkedInput("Nothing to cloak — type or copy some text first.")
-        if text is None:
-            return
-        password = self.ensurePassword()
-        if password is None:
-            return
-
-        cloaked = encryptText(text, password)
-        self.rememberActivePassword()
-        self.showResult(cloaked, secret=False)
-        # Cloaked text is encrypted, so putting it straight on the clipboard
-        # costs nothing and keeps the original one-click flow.
-        if self.writeClipboard(cloaked, secret=False):
-            self.statusBar().showMessage("Cloaked and copied — paste it anywhere.")
-
-    def onUncloakClicked(self) -> None:
-        text = self.checkedInput("Nothing to uncloak — copy an encrypted text first.")
-        if text is None:
-            return
-        password = self.ensurePassword()
-        if password is None:
-            return
-
-        try:
-            plainText = decryptText(text, password)
-        except CryptoError as exc:
-            self.statusBar().showMessage(str(exc))
-            return
-
-        self.rememberActivePassword()
-        # Deliberately not copied: read it here and the secret never reaches
-        # the clipboard at all.
-        self.showResult(plainText, secret=True)
-        self.statusBar().showMessage("Uncloaked below — click Copy only if you need to paste it.")
-
-    def onPasteClicked(self) -> None:
-        self.inputEdit.setPlainText(clipboardService.readText())
-        self.statusBar().showMessage("Pasted from the clipboard.")
-
-    def onCopyClicked(self) -> None:
-        text = self.outputEdit.toPlainText()
-        if not text:
-            self.statusBar().showMessage("There is no result to copy yet.")
-            return
-        if not self.writeClipboard(text, secret=self.resultIsSecret):
-            return
-        if self.resultIsSecret:
-            self.statusBar().showMessage(
-                "Copied — kept out of clipboard history, and cleared when you close CloakClip."
-            )
-        else:
-            self.statusBar().showMessage("Copied — paste it anywhere.")
-
-    def onClearClicked(self) -> None:
+    def clearClipboardAndHistory(self) -> None:
         clipboardCleared = clipboardService.clearText()
         historyCleared = clipboardService.clearHistory()
         self.lastClipboardWrite = None
         self.lastWriteWasSecret = False
-        self.outputEdit.clear()
+        self.manualTab.outputEdit.clear()
 
         if not clipboardCleared:
-            self.statusBar().showMessage("The clipboard is busy — please try again.")
+            self.statusMessage("The clipboard is busy — please try again.")
         elif historyCleared:
-            self.statusBar().showMessage("Clipboard and clipboard history cleared.")
+            self.statusMessage("Clipboard and clipboard history cleared.")
         else:
-            self.statusBar().showMessage("Clipboard cleared; clipboard history was unavailable.")
+            self.statusMessage("Clipboard cleared; clipboard history was unavailable.")
 
     def closeEvent(self, event: QCloseEvent) -> None:
         # Never leave an uncloaked secret behind. Cloaked text is harmless and
@@ -277,6 +150,8 @@ class MainWindow(QMainWindow):
         if self.lastWriteWasSecret and clipboardService.readText() == self.lastClipboardWrite:
             clipboardService.clearText()
         super().closeEvent(event)
+
+    # ---------------------------------------------------------------- about
 
     def buildAboutText(self) -> str:
         year = datetime.date.today().year
