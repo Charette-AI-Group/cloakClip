@@ -1,33 +1,42 @@
-"""Tests for the main window cloak/uncloak workflow."""
+"""Tests for the main window cloak/uncloak workflow.
+
+clearHistory is always monkeypatched: the real call would wipe the Win+V
+history of whoever runs the suite.
+"""
 
 from __future__ import annotations
 
 import pytest
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QLineEdit
+from PySide6.QtWidgets import QLineEdit
 
-from cloakClip.services.cryptoService import CryptoError, decryptText, encryptText
+from cloakClip.services import clipboardService
+from cloakClip.services.cryptoService import decryptText, encryptText
 from cloakClip.ui.mainWindow import MainWindow
 
 
 def setClipboard(qtbot, text: str) -> None:
-    # The Windows clipboard is a shared OS resource; setText can fail when
-    # another process briefly holds it, so retry until the write sticks.
-    clipboard = QApplication.clipboard()
-
-    def writeStuck() -> bool:
-        clipboard.setText(text)
-        return clipboard.text() == text
-
-    qtbot.waitUntil(writeStuck, timeout=2000)
+    # The shared OS clipboard can be held by another process; keep trying.
+    qtbot.waitUntil(lambda: clipboardService.writeText(text), timeout=5000)
 
 
 @pytest.fixture
-def window(qtbot) -> MainWindow:
+def historyCalls(monkeypatch) -> list[bool]:
+    calls: list[bool] = []
+
+    def fakeClearHistory() -> bool:
+        calls.append(True)
+        return True
+
+    monkeypatch.setattr(clipboardService, "clearHistory", fakeClearHistory)
+    return calls
+
+
+@pytest.fixture
+def window(qtbot, historyCalls) -> MainWindow:
     mainWindow = MainWindow()
     qtbot.addWidget(mainWindow)
     mainWindow.show()
-    setClipboard(qtbot, "")
     return mainWindow
 
 
@@ -44,79 +53,139 @@ def testMenuBarStructure(window) -> None:
     assert [a.text() for a in window.helpMenu.actions()] == ["&About"]
 
 
-def testCloakReplacesClipboardWithDecryptableText(window, qtbot) -> None:
+def testCloakShowsResultAndCopiesIt(window, qtbot) -> None:
+    window.inputEdit.setPlainText("my secret note")
     window.passwordEdit.setText("hunter2!")
 
-    # Reset state and retry the whole operation: the shared OS clipboard can
-    # reject individual writes while another process holds it.
-    def cloakSucceeded() -> bool:
-        setClipboard(qtbot, "my secret note")
-        qtbot.mouseClick(window.cloakButton, Qt.MouseButton.LeftButton)
-        try:
-            cloaked = QApplication.clipboard().text()
-            return decryptText(cloaked, "hunter2!") == "my secret note"
-        except CryptoError:
-            return False
+    qtbot.mouseClick(window.cloakButton, Qt.MouseButton.LeftButton)
 
-    qtbot.waitUntil(cloakSucceeded, timeout=5000)
-    assert QApplication.clipboard().text() != "my secret note"
-    assert "cloaked" in window.statusBar().currentMessage()
+    cloaked = window.outputEdit.toPlainText()
+    assert decryptText(cloaked, "hunter2!") == "my secret note"
+    qtbot.waitUntil(lambda: clipboardService.readText() == cloaked, timeout=5000)
+    assert "Cloaked and copied" in window.statusBar().currentMessage()
 
 
-def testUncloakRestoresOriginalText(window, qtbot) -> None:
+def testUncloakShowsPlainTextWithoutTouchingClipboard(window, qtbot) -> None:
     cloaked = encryptText("the original", "pw123")
+    setClipboard(qtbot, cloaked)
+    window.inputEdit.setPlainText(cloaked)
     window.passwordEdit.setText("pw123")
 
-    def uncloakSucceeded() -> bool:
-        setClipboard(qtbot, cloaked)
-        qtbot.mouseClick(window.uncloakButton, Qt.MouseButton.LeftButton)
-        return QApplication.clipboard().text() == "the original"
+    qtbot.mouseClick(window.uncloakButton, Qt.MouseButton.LeftButton)
 
-    qtbot.waitUntil(uncloakSucceeded, timeout=5000)
-    assert "uncloaked" in window.statusBar().currentMessage()
+    assert window.outputEdit.toPlainText() == "the original"
+    # The whole point: the secret is on screen but never on the clipboard.
+    assert clipboardService.readText() == cloaked
+    assert "click Copy" in window.statusBar().currentMessage()
 
 
-def testUncloakWrongPasswordLeavesClipboardUntouched(window, qtbot) -> None:
-    cloaked = encryptText("the original", "right password")
-    setClipboard(qtbot, cloaked)
+def testUncloakWrongPasswordShowsError(window, qtbot) -> None:
+    window.inputEdit.setPlainText(encryptText("the original", "right password"))
     window.passwordEdit.setText("wrong password")
 
     qtbot.mouseClick(window.uncloakButton, Qt.MouseButton.LeftButton)
 
-    assert QApplication.clipboard().text() == cloaked
+    assert window.outputEdit.toPlainText() == ""
     assert "Wrong password" in window.statusBar().currentMessage()
 
 
 def testCloakWithoutPasswordShowsHint(window, qtbot) -> None:
-    setClipboard(qtbot, "something")
+    window.inputEdit.setPlainText("something")
 
     qtbot.mouseClick(window.cloakButton, Qt.MouseButton.LeftButton)
 
-    assert QApplication.clipboard().text() == "something"
+    assert window.outputEdit.toPlainText() == ""
     assert window.statusBar().currentMessage() == "Enter a password first."
 
 
-def testCloakWithEmptyClipboardShowsHint(window, qtbot) -> None:
+def testCloakWithEmptyInputShowsHint(window, qtbot) -> None:
+    window.inputEdit.setPlainText("")
     window.passwordEdit.setText("pw")
 
     qtbot.mouseClick(window.cloakButton, Qt.MouseButton.LeftButton)
 
-    assert "Clipboard is empty" in window.statusBar().currentMessage()
+    assert "Nothing to cloak" in window.statusBar().currentMessage()
 
 
-def testClearButtonEmptiesClipboard(window, qtbot) -> None:
+def testCopyPutsUncloakedResultOnClipboard(window, qtbot) -> None:
+    window.inputEdit.setPlainText(encryptText("copy me", "pw"))
+    window.passwordEdit.setText("pw")
+    qtbot.mouseClick(window.uncloakButton, Qt.MouseButton.LeftButton)
+
+    qtbot.mouseClick(window.copyButton, Qt.MouseButton.LeftButton)
+
+    qtbot.waitUntil(lambda: clipboardService.readText() == "copy me", timeout=5000)
+    assert "kept out of clipboard history" in window.statusBar().currentMessage()
+
+
+def testCopyWithoutResultShowsHint(window, qtbot) -> None:
+    qtbot.mouseClick(window.copyButton, Qt.MouseButton.LeftButton)
+
+    assert window.statusBar().currentMessage() == "There is no result to copy yet."
+
+
+def testPasteLoadsClipboardIntoInput(window, qtbot) -> None:
+    setClipboard(qtbot, "pasted content")
+    window.inputEdit.setPlainText("")
+
+    qtbot.mouseClick(window.pasteButton, Qt.MouseButton.LeftButton)
+
+    assert window.inputEdit.toPlainText() == "pasted content"
+
+
+def testCopyingElsewhereFillsInput(window, qtbot) -> None:
+    setClipboard(qtbot, "copied somewhere else")
+
+    qtbot.waitUntil(
+        lambda: window.inputEdit.toPlainText() == "copied somewhere else", timeout=5000
+    )
+
+
+def testClearEmptiesClipboardAndHistory(window, qtbot, historyCalls) -> None:
+    setClipboard(qtbot, "leftover secret")
+    window.outputEdit.setPlainText("leftover result")
+
     def clearSucceeded() -> bool:
-        setClipboard(qtbot, "leftover secret")
-        qtbot.mouseClick(window.clearButton, Qt.MouseButton.LeftButton)
-        return QApplication.clipboard().text() == ""
+        window.clearButton.click()
+        return clipboardService.readText() == ""
 
     qtbot.waitUntil(clearSucceeded, timeout=5000)
-    assert window.statusBar().currentMessage() == "Clipboard cleared."
+
+    assert window.outputEdit.toPlainText() == ""
+    assert historyCalls, "the Clear button must purge clipboard history too"
+    assert window.statusBar().currentMessage() == "Clipboard and clipboard history cleared."
 
 
-def testPreviewFollowsClipboard(window, qtbot) -> None:
-    setClipboard(qtbot, "watch me appear")
-    qtbot.waitUntil(lambda: window.clipboardPreview.toPlainText() == "watch me appear")
+def testClosingClearsAnUncloakedSecret(window, qtbot) -> None:
+    window.inputEdit.setPlainText(encryptText("sensitive", "pw"))
+    window.passwordEdit.setText("pw")
+    qtbot.mouseClick(window.uncloakButton, Qt.MouseButton.LeftButton)
+    qtbot.mouseClick(window.copyButton, Qt.MouseButton.LeftButton)
+    qtbot.waitUntil(lambda: clipboardService.readText() == "sensitive", timeout=5000)
+
+    window.close()
+
+    assert clipboardService.readText() == ""
+
+
+def testClosingKeepsCloakedTextPasteable(window, qtbot) -> None:
+    window.inputEdit.setPlainText("not secret once encrypted")
+    window.passwordEdit.setText("pw")
+    qtbot.mouseClick(window.cloakButton, Qt.MouseButton.LeftButton)
+    cloaked = window.outputEdit.toPlainText()
+    qtbot.waitUntil(lambda: clipboardService.readText() == cloaked, timeout=5000)
+
+    window.close()
+
+    assert clipboardService.readText() == cloaked
+
+
+def testClosingLeavesUnrelatedClipboardAlone(window, qtbot) -> None:
+    setClipboard(qtbot, "the user's own clipboard content")
+
+    window.close()
+
+    assert clipboardService.readText() == "the user's own clipboard content"
 
 
 def testShowPasswordToggle(window) -> None:
@@ -129,6 +198,7 @@ def testShowPasswordToggle(window) -> None:
 
 def testAboutTextContents(window) -> None:
     aboutText = window.buildAboutText()
+
     assert "CloakClip" in aboutText
     assert "Editor: Francois Charette, PhD" in aboutText
     assert "AI Agent: Claude - Fable 5" in aboutText
