@@ -9,7 +9,7 @@ appVersion = "0.1.0"
 organizationName = "Charette-AI-Group"
 
 # Help > About contents
-editorName = "Francois Charette"
+editorName = "Francois Charette, PhD"
 aiAgentName = "Claude - Fable 5"
 copyrightHolder = "Charette AI Group, LLC"
 
