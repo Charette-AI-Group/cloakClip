@@ -6,13 +6,14 @@ import datetime
 from functools import partial
 
 from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
-from PySide6.QtWidgets import QLabel, QMainWindow, QMessageBox, QTabWidget
+from PySide6.QtWidgets import QLabel, QMainWindow, QMessageBox
 
 from cloakClip import appConfig
 from cloakClip.services import clipboardService, passwordHistoryService
 from cloakClip.ui.clipboardTab import ClipboardTab
 from cloakClip.ui.dialogs.passwordDialog import PasswordDialog
 from cloakClip.ui.manualTab import ManualTab
+from cloakClip.ui.widgets.fullWidthTabWidget import FullWidthTabWidget
 
 
 class MainWindow(QMainWindow):
@@ -29,7 +30,7 @@ class MainWindow(QMainWindow):
 
         self.buildMenuBar()
 
-        self.tabWidget = QTabWidget()
+        self.tabWidget = FullWidthTabWidget()
         self.clipboardTab = ClipboardTab(self)
         self.manualTab = ManualTab(self)
         self.tabWidget.addTab(self.clipboardTab, "&Clipboard")

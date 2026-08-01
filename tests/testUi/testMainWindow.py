@@ -20,6 +20,20 @@ def testTwoTabs(window) -> None:
     assert window.tabWidget.currentWidget() is window.clipboardTab
 
 
+def testTabsEachTakeHalfTheWidth(window, qtbot) -> None:
+    def halvesFill() -> bool:
+        tabBar = window.tabWidget.tabBar()
+        half = window.tabWidget.width() // 2
+        return all(
+            abs(tabBar.tabRect(i).width() - half) <= 1 for i in range(tabBar.count())
+        )
+
+    qtbot.waitUntil(halvesFill, timeout=5000)
+
+    window.resize(window.width() + 200, window.height())
+    qtbot.waitUntil(halvesFill, timeout=5000)
+
+
 def testMenuBarStructure(window) -> None:
     menuTitles = [action.text() for action in window.menuBar().actions()]
     assert menuTitles == ["&File", "&Password", "&Help"]
