@@ -99,7 +99,9 @@ class ManualTab(QWidget):
             return
         self.window.rememberActivePassword()
         # Deliberately not copied: read it here and the secret never reaches
-        # the clipboard at all.
+        # the clipboard at all. Registered anyway, in case the user copies the
+        # shown text by hand.
+        self.window.registerSecret(plainText)
         self.showResult(plainText, secret=True)
         self.window.statusMessage("Uncloaked below — click Copy only if you need to paste it.")
 

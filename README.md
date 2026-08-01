@@ -28,7 +28,10 @@ Windows keeps a history of everything copied (Win+V) and can sync it to the clou
 
 - **The Manual tab keeps secrets off the clipboard entirely.** Uncloaked text is only displayed; if you just need to read a message, it never leaves the window.
 - **Any uncloaked text that does reach the clipboard is marked secret** (both the Clipboard tab's Uncloak and the Manual tab's Copy) using the same Windows clipboard formats password managers use, so Windows keeps it out of clipboard history and cloud sync. It still pastes normally.
-- **Closing the app clears a copied secret** from the clipboard. Cloaked text is left alone, since it is encrypted and you may still want to paste it.
+- **Re-copying a secret by hand is caught.** If you copy an uncloaked text again yourself — selecting it on screen, or re-copying it after pasting — that ordinary copy has no secret marking, so Windows records it. CloakClip watches for its session secrets reappearing on the clipboard, re-protects them, and deletes the recorded entries from Win+V history.
+- **Closing the app cleans up**: a copied secret is cleared from the clipboard, and any session secret that reached Win+V history is deleted from it. Cloaked text is left alone, since it is encrypted and you may still want to paste it.
+
+The guard can only match exact text from the current session — a secret edited after pasting, or one uncloaked in a previous run, is not recognized. For those, use **Clear Clipboard & History**.
 
 ## Compatibility
 

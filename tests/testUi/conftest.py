@@ -28,6 +28,18 @@ def isolatedPasswordHistory(tmp_path, monkeypatch):
     monkeypatch.setattr(appConfig, "passwordHistoryFile", tmp_path / "passwordHistory.bin")
 
 
+@pytest.fixture(autouse=True)
+def purgeCalls(monkeypatch) -> list[set[str]]:
+    calls: list[set[str]] = []
+
+    def fakeDeleteHistoryTexts(texts: set[str]) -> int:
+        calls.append(set(texts))
+        return len(texts)
+
+    monkeypatch.setattr(clipboardService, "deleteHistoryTexts", fakeDeleteHistoryTexts)
+    return calls
+
+
 @pytest.fixture
 def historyCalls(monkeypatch) -> list[bool]:
     calls: list[bool] = []

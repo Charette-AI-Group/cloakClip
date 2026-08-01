@@ -55,3 +55,16 @@ def testClearTextEmptiesClipboard(qapp, qtbot) -> None:
 
 def testHistoryEnabledIsBoolean(qapp) -> None:
     assert isinstance(clipboardService.isHistoryEnabled(), bool)
+
+
+def testCurrentTextMarkedSecretDetection(qapp, qtbot) -> None:
+    writeWithRetry(qtbot, "plain write")
+    assert not clipboardService.currentTextIsMarkedSecret()
+
+    writeWithRetry(qtbot, "secret write", secret=True)
+    assert clipboardService.currentTextIsMarkedSecret()
+
+
+def testDeleteHistoryTextsWithNothingToDelete(qapp) -> None:
+    # Empty input returns without touching the real Win+V history.
+    assert clipboardService.deleteHistoryTexts(set()) == 0

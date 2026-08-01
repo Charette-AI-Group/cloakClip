@@ -80,6 +80,7 @@ class ClipboardTab(QWidget):
             return
         # The plain text goes back on the clipboard (that is this tab's whole
         # point) but marked secret: out of Win+V history, cleared on exit.
+        self.window.registerSecret(plainText)
         if self.window.writeClipboard(plainText, secret=True):
             self.window.rememberActivePassword()
             self.window.statusMessage(

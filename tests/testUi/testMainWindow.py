@@ -111,6 +111,37 @@ def testClearPasswordHistory(window) -> None:
     assert window.passwordLabel.text() == "No password selected"
 
 
+def testRecopiedSecretIsReprotectedAndPurged(window, qtbot, setClipboard, purgeCalls) -> None:
+    setClipboard(encryptText("sensitive", "pw"))
+    window.usePassword("pw")
+    window.clipboardTab.uncloakButton.click()
+    qtbot.waitUntil(lambda: clipboardService.readText() == "sensitive", timeout=5000)
+    assert clipboardService.currentTextIsMarkedSecret()
+
+    # Simulate the user re-copying the decrypted text by hand — an ordinary,
+    # unmarked copy that Win+V would record.
+    qtbot.waitUntil(lambda: clipboardService.writeText("sensitive", secret=False), timeout=5000)
+
+    qtbot.waitUntil(clipboardService.currentTextIsMarkedSecret, timeout=5000)
+    assert clipboardService.readText() == "sensitive"
+    assert window.lastWriteWasSecret
+    qtbot.waitUntil(lambda: bool(purgeCalls), timeout=5000)
+    assert "sensitive" in purgeCalls[-1]
+
+
+def testCloseSweepsSessionSecretsFromHistory(window, qtbot, setClipboard, purgeCalls) -> None:
+    setClipboard(encryptText("sensitive", "pw"))
+    window.usePassword("pw")
+    window.clipboardTab.uncloakButton.click()
+    qtbot.waitUntil(lambda: clipboardService.readText() == "sensitive", timeout=5000)
+    purgeCalls.clear()
+
+    window.close()
+
+    assert purgeCalls, "closing must sweep session secrets out of Win+V history"
+    assert "sensitive" in purgeCalls[-1]
+
+
 def testClosingClearsAnUncloakedSecret(window, qtbot, setClipboard) -> None:
     setClipboard(encryptText("sensitive", "pw"))
     window.usePassword("pw")

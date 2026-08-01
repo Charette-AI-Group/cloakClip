@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import datetime
+import threading
 from functools import partial
 
-from PySide6.QtGui import QAction, QCloseEvent, QKeySequence
+from PySide6.QtCore import QTimer
+from PySide6.QtGui import QAction, QCloseEvent, QGuiApplication, QKeySequence
 from PySide6.QtWidgets import QLabel, QMainWindow, QMessageBox
 
 from cloakClip import appConfig
@@ -27,6 +29,9 @@ class MainWindow(QMainWindow):
         self.lastClipboardWrite: str | None = None
         self.lastWriteWasSecret = False
         self.activePassword: str | None = None
+        # Every plain text uncloaked this session, so re-copies of it can be
+        # re-protected and swept out of Win+V history.
+        self.sessionSecrets: set[str] = set()
 
         self.buildMenuBar()
 
@@ -40,6 +45,8 @@ class MainWindow(QMainWindow):
         self.passwordLabel = QLabel("No password selected")
         self.statusBar().addPermanentWidget(self.passwordLabel)
         self.statusBar().showMessage("Ready")
+
+        QGuiApplication.clipboard().dataChanged.connect(self.guardSecretReappearance)
 
     def buildMenuBar(self) -> None:
         # Menus are kept as attributes: features can extend them later, and it
@@ -123,6 +130,34 @@ class MainWindow(QMainWindow):
     def statusMessage(self, message: str) -> None:
         self.statusBar().showMessage(message)
 
+    def registerSecret(self, text: str) -> None:
+        self.sessionSecrets.add(text)
+
+    def guardSecretReappearance(self) -> None:
+        # A secret uncloaked this session can come back as an ordinary copy —
+        # the user selecting the shown text, or re-copying it after pasting.
+        # Such a copy is unmarked, so Win+V records it. Re-write it marked and
+        # sweep the recorded copy back out of history.
+        text = clipboardService.readText()
+        if not text or text not in self.sessionSecrets:
+            return
+        if clipboardService.currentTextIsMarkedSecret():
+            return
+        if self.writeClipboard(text, secret=True):
+            self.statusMessage("Secret re-copied — protected it again.")
+        # The history service records the unmarked copy asynchronously; give
+        # it a moment to appear before sweeping it out.
+        QTimer.singleShot(800, self.purgeSecretsFromHistory)
+
+    def purgeSecretsFromHistory(self) -> None:
+        secrets = self.sessionSecrets.copy()
+        if not secrets:
+            return
+        # Blocking WinRT calls; keep them off the GUI thread.
+        threading.Thread(
+            target=clipboardService.deleteHistoryTexts, args=(secrets,), daemon=True
+        ).start()
+
     def writeClipboard(self, text: str, secret: bool) -> bool:
         if not clipboardService.writeText(text, secret=secret):
             self.statusMessage("The clipboard is busy — please try again.")
@@ -150,6 +185,11 @@ class MainWindow(QMainWindow):
         # is left alone so it can still be pasted after the window closes.
         if self.lastWriteWasSecret and clipboardService.readText() == self.lastClipboardWrite:
             clipboardService.clearText()
+        # Final sweep: any session secret that reached Win+V history (e.g. a
+        # manual re-copy the timer had not caught yet) is deleted. Deliberately
+        # synchronous — the process may exit right after this.
+        if self.sessionSecrets:
+            clipboardService.deleteHistoryTexts(self.sessionSecrets.copy())
         super().closeEvent(event)
 
     # ---------------------------------------------------------------- about
