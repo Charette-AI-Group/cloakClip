@@ -9,6 +9,7 @@ CI build produce the same thing.
 
 from __future__ import annotations
 
+import importlib.util
 import shutil
 import subprocess
 import sys
@@ -36,6 +37,14 @@ def folderSizeMb(path: Path) -> float:
 def main() -> int:
     if not specFile.exists():
         print(f"Missing {specFile}", file=sys.stderr)
+        return 1
+
+    if importlib.util.find_spec("PyInstaller") is None:
+        print(
+            "PyInstaller is not installed in this environment.\n"
+            'Install the build tools:  python -m pip install -e ".[dev,build]"',
+            file=sys.stderr,
+        )
         return 1
 
     for folder in (buildDir, distDir):

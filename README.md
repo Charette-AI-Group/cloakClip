@@ -89,7 +89,7 @@ The icon itself is generated, not hand-drawn; edit `tools/makeIcon.py` and re-ru
 cd W:\projects\26cloakClip
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-pip install -e ".[dev]"
+pip install -e ".[dev,build]"
 ```
 
 ## Daily workflow
