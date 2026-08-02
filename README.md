@@ -2,6 +2,14 @@
 
 Encrypt ("cloak") and decrypt ("uncloak") text with a shared password — a friendly GUI replacement for the original `encrypt.ps1` / `decrypt.ps1` PowerShell scripts.
 
+## Why cloak text
+
+A cloaked message is just a line of ordinary characters, so it travels anywhere plain text goes — no attachments, no plugins, nothing for the other end to install. That makes it useful wherever a message will outlive the moment you send it: chats and DMs that your employer or the platform retains, emails that sit on servers and get forwarded and backed up, tickets and shared documents that more people can read than you intended. Sending a colleague a Wi-Fi password, an API key, or a licence key is the classic case.
+
+It works just as well when there is no second party. "Cloaked" personal notes let you keep something sensitive inside a notes app that syncs to somebody else's cloud — recovery codes, account details, a private journal entry, the answer to a security question — where the note is readable by anyone with access to the account, but the cloaked block is not. The same trick covers anything you have to route through a channel you do not control, right down to leaving yourself a note in a place you would rather not trust.
+
+**Share the password through a different channel than the message.** If you email a cloaked block, do not email the password — send it by text, say it in a phone call, or hand it over in person. Anything else puts both halves in the same place, and whoever can read that place has the plain text. The same goes for the obvious shortcut of putting the password in the next chat message: use a genuinely separate route. A password is also worth reusing only as long as it stays private between the two of you, and it should be long — see the note on key derivation under [Compatibility](#compatibility).
+
 ## Usage
 
 The window has two tabs for two ways of working.
