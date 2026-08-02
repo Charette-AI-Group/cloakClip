@@ -9,6 +9,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import QApplication
 
 from cloakClip import appConfig
+from cloakClip.services import themeService
 from cloakClip.ui.mainWindow import MainWindow
 
 
@@ -53,6 +54,8 @@ def main() -> int:
     app.setOrganizationName(appConfig.organizationName)
     if appConfig.iconFile.exists():
         app.setWindowIcon(QIcon(str(appConfig.iconFile)))
+    # Follows Windows unless the user picked an override under Help > Theme.
+    themeService.applyTheme(themeService.loadTheme())
 
     mainWindow = MainWindow()
     mainWindow.show()

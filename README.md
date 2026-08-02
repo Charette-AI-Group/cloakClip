@@ -20,6 +20,10 @@ A password only enters the history after it *works* — a successful uncloak, or
 
 The history is stored encrypted with Windows DPAPI in `%APPDATA%\CloakClip\passwordHistory.bin`, tied to your Windows account: unreadable from other accounts or machines, but decryptable by any program running as you. If you don't want passwords kept at all, use **Password > Clear Password History**.
 
+## Theme
+
+CloakClip follows the Windows light/dark setting by default. **Help > Theme** overrides it for this app alone — **Light**, **Dark**, or back to **Use System Theme** — and the choice is remembered in `%APPDATA%\CloakClip\settings.ini`. In system mode the app also follows along if you switch Windows between light and dark while it is running.
+
 ## Window position
 
 CloakClip reopens at the size and position it had when you closed it, remembered in `%APPDATA%\CloakClip\settings.ini`. Delete that file to go back to the default size. If the window was last on a monitor that is no longer attached, it is recentred on the primary screen rather than restored off-screen.

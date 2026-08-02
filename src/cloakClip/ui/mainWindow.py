@@ -6,12 +6,25 @@ import datetime
 import threading
 from functools import partial
 
-from PySide6.QtCore import QTimer
-from PySide6.QtGui import QAction, QCloseEvent, QColor, QGuiApplication, QKeySequence, QPalette
+from PySide6.QtCore import QEvent, QTimer
+from PySide6.QtGui import (
+    QAction,
+    QActionGroup,
+    QCloseEvent,
+    QColor,
+    QGuiApplication,
+    QKeySequence,
+    QPalette,
+)
 from PySide6.QtWidgets import QLabel, QMainWindow, QMessageBox
 
 from cloakClip import appConfig
-from cloakClip.services import clipboardService, passwordHistoryService, windowStateService
+from cloakClip.services import (
+    clipboardService,
+    passwordHistoryService,
+    themeService,
+    windowStateService,
+)
 from cloakClip.ui.clipboardTab import ClipboardTab
 from cloakClip.ui.dialogs.passwordDialog import PasswordDialog
 from cloakClip.ui.manualTab import ManualTab
@@ -35,6 +48,7 @@ class MainWindow(QMainWindow):
         self.lastClipboardWrite: str | None = None
         self.lastWriteWasSecret = False
         self.activePassword: str | None = None
+        self._applyingTabStyle = False
         # Every plain text uncloaked this session, so re-copies of it can be
         # re-protected and swept out of Win+V history.
         self.sessionSecrets: set[str] = set()
@@ -56,14 +70,35 @@ class MainWindow(QMainWindow):
         self.restoreWindowGeometry()
         QGuiApplication.clipboard().dataChanged.connect(self.guardSecretReappearance)
 
+    def changeEvent(self, event) -> None:
+        super().changeEvent(event)
+        # The tab styling is built from palette colours, so it must be rebuilt
+        # whenever the palette changes — a theme override here, or Windows
+        # switching light/dark while the app is running.
+        paletteChanged = event.type() in (
+            QEvent.Type.PaletteChange,
+            QEvent.Type.ApplicationPaletteChange,
+        )
+        if paletteChanged and not self._applyingTabStyle:
+            self.applyTabEmphasis()
+
     def applyTabEmphasis(self) -> None:
         """Make the tabs read as buttons rather than plain labels.
 
         Colours come from the palette (plus the app's accent) so the styling
         holds up in both the light and dark Windows themes.
         """
+        self._applyingTabStyle = True
+        try:
+            self.buildTabStyle()
+        finally:
+            self._applyingTabStyle = False
+
+    def buildTabStyle(self) -> None:
         tabBar = self.tabWidget.tabBar()
-        font = tabBar.font()
+        # Base the size on the window font, not the tab bar's current one:
+        # this runs again on a theme change and must not compound.
+        font = self.font()
         font.setBold(True)
         font.setPointSizeF(font.pointSizeF() * 1.15)
         tabBar.setFont(font)
@@ -111,6 +146,22 @@ class MainWindow(QMainWindow):
         self.rebuildPasswordMenu()
 
         helpMenu = self.helpMenu = self.menuBar().addMenu("&Help")
+
+        self.themeMenu = helpMenu.addMenu("&Theme")
+        self.themeGroup = QActionGroup(self)
+        self.themeGroup.setExclusive(True)
+        self.themeActions: dict[str, QAction] = {}
+        activeTheme = themeService.loadTheme()
+        for theme in themeService.themeChoices:
+            action = QAction(themeService.themeLabels[theme], self)
+            action.setCheckable(True)
+            action.setChecked(theme == activeTheme)
+            action.triggered.connect(partial(self.onThemeChosen, theme))
+            self.themeGroup.addAction(action)
+            self.themeMenu.addAction(action)
+            self.themeActions[theme] = action
+
+        helpMenu.addSeparator()
 
         self.aboutAction = QAction("&About", self)
         self.aboutAction.triggered.connect(self.onHelpAbout)
@@ -173,6 +224,16 @@ class MainWindow(QMainWindow):
     def rememberActivePassword(self) -> None:
         if self.activePassword:
             passwordHistoryService.rememberPassword(self.activePassword)
+
+    def onThemeChosen(self, theme: str) -> None:
+        themeService.saveTheme(theme)
+        # The tab styling is rebuilt by changeEvent once the new palette
+        # actually arrives — doing it here would use the old colours.
+        themeService.applyTheme(theme)
+        if theme == themeService.systemTheme:
+            self.statusMessage("Theme follows the Windows setting.")
+        else:
+            self.statusMessage(f"{theme.capitalize()} theme applied to CloakClip.")
 
     # -------------------------------------------------------- window state
 

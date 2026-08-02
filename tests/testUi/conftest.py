@@ -31,8 +31,15 @@ def isolatedPasswordHistory(tmp_path, monkeypatch):
 
 @pytest.fixture(autouse=True)
 def isolatedSettings(tmp_path, monkeypatch):
-    """Keep tests away from the real remembered window position."""
+    """Keep tests away from the real window position and theme choice."""
     monkeypatch.setattr(appConfig, "settingsFile", tmp_path / "settings.ini")
+
+
+@pytest.fixture(autouse=True)
+def restoreColorScheme(qapp):
+    """A forced colour scheme is global; put it back after every test."""
+    yield
+    qapp.styleHints().unsetColorScheme()
 
 
 @pytest.fixture(autouse=True)

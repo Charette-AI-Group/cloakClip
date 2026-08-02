@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QSize
+import pytest
+from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QGuiApplication
 
 from cloakClip import appConfig
-from cloakClip.services import clipboardService, passwordHistoryService
+from cloakClip.services import clipboardService, passwordHistoryService, themeService
 from cloakClip.services.cryptoService import encryptText
 from cloakClip.ui.dialogs.passwordDialog import PasswordDialog
 from cloakClip.ui.mainWindow import MainWindow
@@ -56,7 +57,76 @@ def testMenuBarStructure(window) -> None:
     menuTitles = [action.text() for action in window.menuBar().actions()]
     assert menuTitles == ["&File", "&Password", "&Help"]
     assert [a.text() for a in window.fileMenu.actions()] == ["E&xit"]
-    assert [a.text() for a in window.helpMenu.actions()] == ["&About"]
+    helpItems = [a.text() for a in window.helpMenu.actions() if not a.isSeparator()]
+    assert helpItems == ["&Theme", "&About"]
+
+
+def testThemeMenuOffersSystemLightDark(window) -> None:
+    labels = [a.text() for a in window.themeMenu.actions()]
+    assert labels == ["Use &System Theme", "&Light", "&Dark"]
+
+    assert all(a.isCheckable() for a in window.themeMenu.actions())
+    assert window.themeGroup.isExclusive()
+    # Following Windows is the default.
+    assert window.themeActions[themeService.systemTheme].isChecked()
+
+
+def testChoosingDarkAppliesAndRemembersIt(window) -> None:
+    window.themeActions[themeService.darkTheme].trigger()
+
+    assert themeService.currentColorScheme() == Qt.ColorScheme.Dark
+    assert themeService.loadTheme() == themeService.darkTheme
+    assert window.themeActions[themeService.darkTheme].isChecked()
+    assert not window.themeActions[themeService.systemTheme].isChecked()
+
+
+def testChoosingLightAppliesIt(window) -> None:
+    window.themeActions[themeService.lightTheme].trigger()
+
+    assert themeService.currentColorScheme() == Qt.ColorScheme.Light
+    assert "Light theme applied" in window.statusBar().currentMessage()
+
+
+def testReturningToSystemReleasesTheOverride(window, qapp) -> None:
+    window.themeActions[themeService.lightTheme].trigger()
+
+    window.themeActions[themeService.systemTheme].trigger()
+
+    assert themeService.loadTheme() == themeService.systemTheme
+    assert "follows the Windows setting" in window.statusBar().currentMessage()
+
+
+def testSavedThemeIsRestoredOnNextLaunch(window, qtbot) -> None:
+    window.themeActions[themeService.lightTheme].trigger()
+    window.close()
+
+    reopened = MainWindow()
+    qtbot.addWidget(reopened)
+
+    assert reopened.themeActions[themeService.lightTheme].isChecked()
+
+
+def testTabStylingFollowsTheNewPalette(window, qtbot) -> None:
+    # Regression: the styling used to be rebuilt before Qt delivered the new
+    # palette, so switching to Light left the unselected tab label painted in
+    # dark-theme white — invisible on a light background.
+    window.themeActions[themeService.darkTheme].trigger()
+    qtbot.wait(50)
+    darkStyle = window.tabWidget.styleSheet()
+
+    window.themeActions[themeService.lightTheme].trigger()
+    qtbot.wait(50)
+
+    assert window.tabWidget.styleSheet() != darkStyle
+
+
+def testSwitchingThemeDoesNotGrowTheTabFont(window) -> None:
+    original = window.tabWidget.tabBar().font().pointSizeF()
+
+    for theme in (themeService.darkTheme, themeService.lightTheme, themeService.systemTheme):
+        window.themeActions[theme].trigger()
+
+    assert window.tabWidget.tabBar().font().pointSizeF() == pytest.approx(original)
 
 
 def testPasswordMenuEmptyState(window) -> None:
