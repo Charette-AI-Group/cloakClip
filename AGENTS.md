@@ -8,6 +8,84 @@ Optimize for clarity, safe refactoring, and a GUI that stays responsive.
 - Python desktop GUI app using **PySide6** (Qt 6).
 - Solo project: no team processes, but keep structure so humans and agents can navigate the code later.
 
+---
+
+# This app: CloakClip
+
+Encrypts and decrypts text in the clipboard with a shared password. Wire-compatible with the original `encrypt.ps1` / `decrypt.ps1` scripts: AES-256-CBC, key = SHA-256 of the password, random 16-byte IV prepended, Base64.
+
+The interesting part is not the crypto — it is keeping a *decrypted* secret from outliving its use. On Windows that means keeping it out of clipboard history (Win+V) and cloud sync. Read `README.md` for the user-facing behaviour before changing anything.
+
+**Status:** Windows is fully supported. macOS builds and launches (CI proves it every push) but has **no clipboard protections** — it gets the generic no-op backend, which reports every protection as unavailable rather than pretending.
+
+## Notes for a macOS session
+
+Everything below is the remaining work. It was scoped from Windows, so treat macOS specifics as *leads to verify*, not facts.
+
+### Where the platform line is drawn
+
+| File | Role |
+|---|---|
+| `services/platform/clipboardBackend.py` | The interface, and a working no-op backend |
+| `services/platform/windowsClipboard.py` | Reference implementation — read this first |
+| `services/clipboardService.py` | `createBackend()` — the single branch to extend |
+| `services/passwordHistoryService.py` | DPAPI store, Windows-only, gated on `dpapiAvailable` |
+
+Qt handles plain clipboard read/write on every platform; only *protection* is platform-specific. Nothing above the service layer should need to change — if you find yourself editing `ui/`, stop and reconsider.
+
+### Task 1 — `services/platform/macClipboard.py`
+
+Implement `ClipboardBackend` with `name = "macos"`:
+
+- **`secretMimeData()`** — the lead is `org.nspasteboard.ConcealedType`, a convention that clipboard managers (Raycast, Alfred, Maccy, Paste) *choose* to honour. Nothing in macOS enforces it, so do not describe it to the user as equivalent to the Windows guarantee. Qt's `application/x-qt-windows-mime;value="…"` trick has no macOS twin, so this likely needs PyObjC talking to `NSPasteboard` directly. If a raw pasteboard write is needed, add an optional hook to the backend interface — do **not** let `NSPasteboard` leak up into `clipboardService` or the UI.
+- **`supportsHistory` → `False`.** macOS has no built-in clipboard history. That is genuinely good news: the exposure the Windows code fights does not exist. Leave `clearHistory()` and `deleteHistoryTexts()` as inherited no-ops. **Never fake them.**
+- Consequence to raise with the user: the Clipboard tab's **Clear Clipboard & History** button and the session-secret purge become partly meaningless on macOS. Ask before relabelling — do not silently change shared UI text.
+
+### Task 2 — Keychain-backed password history
+
+`passwordHistoryService` stores a JSON list encrypted with DPAPI at `%APPDATA%\CloakClip\passwordHistory.bin`. On macOS use the Keychain (the `keyring` package is the pragmatic route; add it with a `sys_platform == 'darwin'` marker).
+
+Give it the same treatment as the clipboard: a `services/platform/secretStore.py` interface with Windows and macOS implementations, keeping the public API (`loadPasswords`, `rememberPassword`, `clearPasswords`, `maskPassword`) unchanged. A test asserts the stored bytes never contain the plaintext password — keep an equivalent assertion for the Keychain.
+
+### Task 3 — Universal Clipboard
+
+macOS syncs the clipboard to nearby Apple devices. This is a **new exposure with no Windows counterpart**, and it is not currently handled anywhere. Find out whether the concealed marker suppresses it. If you cannot verify it, say so plainly in the README rather than implying protection.
+
+### Verify empirically — this is not optional here
+
+Three Windows features looked correct in code and in tests, and were wrong until probed against the live API:
+
+- Secret marking — proven only by a control/treatment pair checked against the real Win+V history.
+- History purging — needed the real API to confirm it deleted the right item and nothing else.
+- A theme switch left a tab label invisible (white on white) because styling was rebuilt before Qt delivered the new palette. Tests passed; a screenshot caught it.
+
+So: write throwaway probe scripts, run them, read the output. Screenshot the GUI in both light and dark. Do not report a protection as working because the code looks right.
+
+### Test rules you must respect
+
+`tests/testUi/conftest.py` has autouse fixtures that keep the suite away from real user state: the settings file, the password history, the forced colour scheme, the modal password dialog, and `deleteHistoryTexts`. **Add an equivalent isolation fixture before touching the Keychain** — a test run must never read or write the developer's real Keychain, and a modal dialog must never be able to open and hang the suite.
+
+The CI test job runs on `windows-latest`, so macOS work must not break the Windows suite.
+
+### Build and verification
+
+```bash
+python tools/buildStandalone.py          # uses the committed cloakClip.spec
+./dist/CloakClip.app/Contents/MacOS/CloakClip --selftest report.txt
+```
+
+`--selftest` reports the backend and each capability, and exists precisely because these pieces fail *quietly*. Once macOS has real protections, update `expectProtections` in `main.py:runSelfTest` so a macOS build that lost them fails too — right now it only enforces this on Windows.
+
+`.github/workflows/build.yml` builds both platforms on every push and attaches both to a Release on `v*` tags.
+
+### Definition of done
+
+1. `--selftest` on macOS reports `clipboardBackend=macos` and `secretMarking=True`.
+2. A decrypted secret copied on macOS does **not** appear in an installed clipboard manager that honours the convention — verified by looking, not assumed.
+3. Password history works through the Keychain, with plaintext never recoverable from stored bytes.
+4. The README platform section describes what macOS actually does, including the honest limits.
+5. The Windows suite is still green in CI.
+
 ## Naming conventions (required)
 
 | Item | Style | Example |
