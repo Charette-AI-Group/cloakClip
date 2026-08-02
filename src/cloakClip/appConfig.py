@@ -30,5 +30,7 @@ passwordHistoryFile = appDataDir / "passwordHistory.bin"
 settingsFile = appDataDir / "settings.ini"
 maxPasswordHistory = 10
 windowTitle = appName
+# Indigo from the app icon; legible on both light and dark Windows themes.
+accentColor = "#6366F1"
 defaultWindowWidth = 620
 defaultWindowHeight = 620

@@ -7,7 +7,7 @@ import threading
 from functools import partial
 
 from PySide6.QtCore import QTimer
-from PySide6.QtGui import QAction, QCloseEvent, QGuiApplication, QKeySequence
+from PySide6.QtGui import QAction, QCloseEvent, QColor, QGuiApplication, QKeySequence, QPalette
 from PySide6.QtWidgets import QLabel, QMainWindow, QMessageBox
 
 from cloakClip import appConfig
@@ -16,6 +16,12 @@ from cloakClip.ui.clipboardTab import ClipboardTab
 from cloakClip.ui.dialogs.passwordDialog import PasswordDialog
 from cloakClip.ui.manualTab import ManualTab
 from cloakClip.ui.widgets.fullWidthTabWidget import FullWidthTabWidget
+
+
+def rgba(color: QColor, alphaFactor: float | None = None) -> str:
+    """Qt stylesheet rgba() string, optionally re-scaling the alpha."""
+    alpha = color.alphaF() if alphaFactor is None else alphaFactor
+    return f"rgba({color.red()}, {color.green()}, {color.blue()}, {alpha:.3f})"
 
 
 class MainWindow(QMainWindow):
@@ -40,6 +46,7 @@ class MainWindow(QMainWindow):
         self.manualTab = ManualTab(self)
         self.tabWidget.addTab(self.clipboardTab, "&Clipboard")
         self.tabWidget.addTab(self.manualTab, "&Manual")
+        self.applyTabEmphasis()
         self.setCentralWidget(self.tabWidget)
 
         self.passwordLabel = QLabel("No password selected")
@@ -48,6 +55,46 @@ class MainWindow(QMainWindow):
 
         self.restoreWindowGeometry()
         QGuiApplication.clipboard().dataChanged.connect(self.guardSecretReappearance)
+
+    def applyTabEmphasis(self) -> None:
+        """Make the tabs read as buttons rather than plain labels.
+
+        Colours come from the palette (plus the app's accent) so the styling
+        holds up in both the light and dark Windows themes.
+        """
+        tabBar = self.tabWidget.tabBar()
+        font = tabBar.font()
+        font.setBold(True)
+        font.setPointSizeF(font.pointSizeF() * 1.15)
+        tabBar.setFont(font)
+
+        accent = QColor(appConfig.accentColor)
+        idle = QColor(self.palette().color(QPalette.ColorRole.WindowText))
+        idle.setAlpha(145)
+        divider = QColor(idle)
+        divider.setAlpha(60)
+
+        self.tabWidget.setStyleSheet(f"""
+            QTabWidget::pane {{
+                border: none;
+                border-top: 1px solid {rgba(divider)};
+            }}
+            QTabBar::tab {{
+                padding: 10px 8px;
+                border: none;
+                border-bottom: 3px solid transparent;
+                color: {rgba(idle)};
+            }}
+            QTabBar::tab:hover {{
+                color: {rgba(accent)};
+                background-color: {rgba(accent, 0.12)};
+            }}
+            QTabBar::tab:selected {{
+                color: {rgba(accent)};
+                border-bottom: 3px solid {rgba(accent)};
+                background-color: {rgba(accent, 0.08)};
+            }}
+        """)
 
     def buildMenuBar(self) -> None:
         # Menus are kept as attributes: features can extend them later, and it

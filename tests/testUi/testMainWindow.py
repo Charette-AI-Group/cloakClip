@@ -39,6 +39,19 @@ def testTabsEachTakeHalfTheWidth(window, qtbot) -> None:
     qtbot.waitUntil(halvesFill, timeout=5000)
 
 
+def testTabLabelsAreEmphasised(window) -> None:
+    tabBar = window.tabWidget.tabBar()
+
+    assert tabBar.font().bold()
+    assert tabBar.font().pointSizeF() > window.font().pointSizeF()
+
+    style = window.tabWidget.styleSheet()
+    # A selected-tab accent and a hover state are what make them read as
+    # clickable rather than as plain labels.
+    assert "QTabBar::tab:selected" in style
+    assert "QTabBar::tab:hover" in style
+
+
 def testMenuBarStructure(window) -> None:
     menuTitles = [action.text() for action in window.menuBar().actions()]
     assert menuTitles == ["&File", "&Password", "&Help"]
