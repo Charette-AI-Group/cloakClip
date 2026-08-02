@@ -1,6 +1,6 @@
 # CloakClip
 
-Encrypt ("cloak") and decrypt ("uncloak") text with a shared password — a friendly GUI replacement for the original `encrypt.ps1` / `decrypt.ps1` PowerShell scripts.
+Encrypt ("cloak") and decrypt ("uncloak") text with a shared password.
 
 ## Why cloak text
 
@@ -14,7 +14,7 @@ It works just as well when there is no second party. "Cloaked" personal notes le
 
 The window has two tabs for two ways of working.
 
-**Clipboard tab** — the one-click flow, like the original scripts. The box shows whatever is on the clipboard. Copy text anywhere, click **Cloak Clipboard**, and the clipboard now holds the encrypted string — paste it anywhere. Copy an encrypted string and click **Uncloak Clipboard**, and the clipboard holds the original text, ready to paste (marked secret: kept out of Win+V history and cleared when you close the app).
+**Clipboard tab** — the one-click flow. The box shows whatever is on the clipboard. Copy text anywhere, click **Cloak Clipboard**, and the clipboard now holds the encrypted string — paste it anywhere. Copy an encrypted string and click **Uncloak Clipboard**, and the clipboard holds the original text, ready to paste (marked secret: kept out of Win+V history and cleared when you close the app).
 
 ![Cloaking and uncloaking the clipboard in one click](docs/clipboardTab.gif)
 
@@ -67,7 +67,7 @@ A macOS port means adding `services/platform/macClipboard.py` and a Keychain-bac
 
 ## Compatibility
 
-The scheme is identical to the PowerShell scripts (AES-256-CBC, key = SHA-256 of the password, random 16-byte IV prepended, Base64): strings encrypted by either tool decrypt in the other. As with the scripts, the key derivation is a single unsalted SHA-256 — use a long password.
+The scheme is AES-256-CBC with the key derived as SHA-256 of the password, a random 16-byte IV prepended to the ciphertext, and the whole payload Base64-encoded. Any tool implementing the same scheme can read CloakClip's output and vice versa. Note that the key derivation is a single unsalted SHA-256 — no PBKDF2 or Argon2 stretching — so a short password is vulnerable to offline guessing. Use a long one.
 
 ## Standalone executable
 
