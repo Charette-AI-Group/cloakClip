@@ -12,7 +12,7 @@ from __future__ import annotations
 import ctypes
 import json
 import logging
-from ctypes import wintypes
+import sys
 from pathlib import Path
 
 from cloakClip import appConfig
@@ -21,9 +21,18 @@ logger = logging.getLogger(__name__)
 
 cryptProtectUiForbidden = 0x1
 
+# ctypes.wintypes only imports on Windows, so the whole DPAPI layer is
+# conditional. Elsewhere the history is simply not kept — a macOS build
+# should swap in a Keychain-backed store here.
+dpapiAvailable = sys.platform == "win32"
 
-class DataBlob(ctypes.Structure):
-    _fields_ = [("cbData", wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_char))]
+if dpapiAvailable:
+    from ctypes import wintypes
+
+    class DataBlob(ctypes.Structure):
+        _fields_ = [("cbData", wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_char))]
+else:  # pragma: no cover - exercised only on non-Windows platforms
+    logger.info("No encrypted password store on %s; history disabled", sys.platform)
 
 
 def _crypt32():
@@ -52,10 +61,14 @@ def _dpapiCall(functionName: str, data: bytes) -> bytes:
 
 
 def protect(data: bytes) -> bytes:
+    if not dpapiAvailable:
+        raise RuntimeError("DPAPI encryption is only available on Windows")
     return _dpapiCall("CryptProtectData", data)
 
 
 def unprotect(data: bytes) -> bytes:
+    if not dpapiAvailable:
+        raise RuntimeError("DPAPI encryption is only available on Windows")
     return _dpapiCall("CryptUnprotectData", data)
 
 
@@ -72,6 +85,8 @@ def _historyFile(filePath: Path | None) -> Path:
 
 def loadPasswords(filePath: Path | None = None) -> list[str]:
     """Most recent first. Missing or unreadable history is just empty."""
+    if not dpapiAvailable:
+        return []
     historyFile = _historyFile(filePath)
     if not historyFile.exists():
         return []
@@ -87,7 +102,7 @@ def loadPasswords(filePath: Path | None = None) -> list[str]:
 
 def rememberPassword(password: str, filePath: Path | None = None) -> list[str]:
     """Put a password at the front of the history; returns the new history."""
-    if not password:
+    if not password or not dpapiAvailable:
         return loadPasswords(filePath)
     passwords = loadPasswords(filePath)
     if password in passwords:

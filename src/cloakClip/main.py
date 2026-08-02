@@ -21,25 +21,35 @@ def runSelfTest(reportPath: str | None) -> int:
     runtime rather than crashing, so a build can look fine and silently
     have no clipboard-history support.
     """
-    from cloakClip.services import clipboardService
+    from cloakClip.services import clipboardService, passwordHistoryService
 
     iconFound = appConfig.iconFile.exists()
-    winrtFound = clipboardService.winrtClipboard is not None
+    backend = clipboardService.backend
+    # On Windows the protections are the point, so their absence is a failed
+    # build. Elsewhere there is no backend yet and that is expected.
+    expectProtections = sys.platform == "win32"
+    protectionsFound = backend.supportsHistory and backend.supportsSecretMarking
     report = "\n".join(
         [
+            f"platform={sys.platform}",
             f"frozen={getattr(sys, 'frozen', False)}",
             f"version={appConfig.appVersion}",
             f"iconFile={appConfig.iconFile}",
             f"iconFound={iconFound}",
-            f"winrtFound={winrtFound}",
+            f"clipboardBackend={backend.name}",
+            f"secretMarking={backend.supportsSecretMarking}",
+            f"historySupport={backend.supportsHistory}",
             f"historyEnabled={clipboardService.isHistoryEnabled()}",
+            f"passwordStore={passwordHistoryService.dpapiAvailable}",
         ]
     )
     if reportPath:
         Path(reportPath).write_text(report, encoding="utf-8")
     else:
         print(report)
-    return 0 if iconFound and winrtFound else 1
+    if not iconFound:
+        return 1
+    return 0 if protectionsFound or not expectProtections else 1
 
 
 def main() -> int:

@@ -6,10 +6,12 @@ requires-python = ">=3.14"
 dependencies = [
     "PySide6>=6.6,<7",
     "cryptography>=42,<47",
-    "winrt-Windows.ApplicationModel.DataTransfer>=3,<4",
-    "winrt-Windows.Foundation>=3,<4",
-    "winrt-Windows.Foundation.Collections>=3,<4",
-    "winrt-Windows.Storage.Streams>=3,<4",
+    # Windows-only wheels: the clipboard-history protections. Without the
+    # markers, installing on macOS or Linux fails outright.
+    "winrt-Windows.ApplicationModel.DataTransfer>=3,<4; sys_platform == 'win32'",
+    "winrt-Windows.Foundation>=3,<4; sys_platform == 'win32'",
+    "winrt-Windows.Foundation.Collections>=3,<4; sys_platform == 'win32'",
+    "winrt-Windows.Storage.Streams>=3,<4; sys_platform == 'win32'",
 ]
 
 [project.optional-dependencies]
@@ -17,7 +19,11 @@ dev = [
     "pytest>=8.0,<9",
     "pytest-qt>=4.4,<5",
     "ruff>=0.4,<1",
+]
+build = [
     "pyinstaller>=6.10,<7",
+    # Converts the icon to the platform format at build time.
+    "pillow>=10,<12",
 ]
 
 [project.scripts]

@@ -4,7 +4,6 @@ __pycache__/
 .eggs/
 dist/
 build/
-*.spec
 .venv/
 venv/
 .env

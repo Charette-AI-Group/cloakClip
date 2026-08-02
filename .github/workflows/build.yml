@@ -1,0 +1,135 @@
+# Builds the standalone app on every push (and on demand via the Actions tab).
+# Windows -> CloakClip.exe, macOS (Apple Silicon) -> CloakClip.app.
+# Download the results from the run's "Artifacts" section on GitHub.
+#
+# Pushing a version tag (v*) additionally publishes a GitHub Release with
+# both binaries attached, e.g.: git tag -a v0.8.0 -m "..." && git push origin v0.8.0
+
+name: build
+
+on:
+  push:
+    branches:
+      - "**"
+    tags:
+      - "v*"
+    paths-ignore:
+      - "**.md"
+      - "docs/**"
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install app and dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+
+      - name: Run tests
+        run: python -m pytest -q
+
+      - name: Lint
+        run: python -m ruff check src tests tools
+
+  build:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifactName: cloakClip-windows
+            artifactPath: dist/CloakClip.exe
+          - os: macos-latest
+            artifactName: cloakClip-macos-appleSilicon
+            artifactPath: dist/CloakClip-macos.zip
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+
+      - name: Install app and build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install ".[build]"
+
+      - name: Build with PyInstaller
+        run: python -m PyInstaller cloakClip.spec --noconfirm
+
+      # The bundled icon and (on Windows) the clipboard-history bindings fail
+      # quietly at runtime if packaging drops them, so a build that lost them
+      # must not be published as if it were fine.
+      - name: Verify the build is complete
+        if: runner.os == 'Windows'
+        run: |
+          .\dist\CloakClip.exe --selftest selftest.txt
+          Get-Content selftest.txt
+
+      - name: Verify the build is complete
+        if: runner.os == 'macOS'
+        run: |
+          ./dist/CloakClip.app/Contents/MacOS/CloakClip --selftest selftest.txt
+          cat selftest.txt
+
+      # upload-artifact does not preserve macOS bundle structure/permissions,
+      # so zip the .app first (ditto keeps executable bits and symlinks).
+      - name: Zip macOS app bundle
+        if: runner.os == 'macOS'
+        run: ditto -c -k --keepParent "dist/CloakClip.app" "dist/CloakClip-macos.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.artifactName }}
+          path: ${{ matrix.artifactPath }}
+          if-no-files-found: error
+
+  # On version tags, publish both binaries to a GitHub Release (release
+  # assets never expire, unlike workflow artifacts).
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Create release and attach binaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ github.ref_name }}"
+          files=(
+            "artifacts/cloakClip-windows/CloakClip.exe"
+            "artifacts/cloakClip-macos-appleSilicon/CloakClip-macos.zip"
+          )
+          if gh release view "$tag" --repo "${{ github.repository }}" > /dev/null 2>&1; then
+            gh release upload "$tag" "${files[@]}" --repo "${{ github.repository }}" --clobber
+          else
+            gh release create "$tag" "${files[@]}" \
+              --repo "${{ github.repository }}" \
+              --title "CloakClip ${tag#v}" \
+              --generate-notes
+          fi

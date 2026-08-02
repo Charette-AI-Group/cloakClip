@@ -47,19 +47,27 @@ The guard can only match exact text from the current session — a secret edited
 
 Every cloak generates a fresh random initialization vector, so cloaking the same text with the same password produces a completely different string each time. All of them uncloak back to the original — use whichever one you copied. This is deliberate: without it, identical messages would produce identical strings, and anyone seeing two of them could tell they matched without knowing the password. The only practical consequence is that you cannot compare two cloaked strings to check whether they hold the same secret.
 
+## Platform support
+
+Windows is the fully supported platform. The app builds and runs on macOS, but the clipboard protections do not exist there yet: `services/platform/` holds a per-OS backend, and macOS currently gets the generic one, which reports every protection as unavailable rather than pretending. The password history is likewise Windows-only for now, since it is encrypted with DPAPI.
+
+A macOS port means adding `services/platform/macClipboard.py` and a Keychain-backed password store — nothing above that layer changes. Be aware that macOS has no built-in clipboard history to purge (so that exposure does not exist), that the nearest equivalent to secret marking is the `org.nspasteboard.ConcealedType` convention which clipboard managers *choose* to honour, and that Universal Clipboard syncing is a new exposure with no Windows counterpart.
+
 ## Compatibility
 
 The scheme is identical to the PowerShell scripts (AES-256-CBC, key = SHA-256 of the password, random 16-byte IV prepended, Base64): strings encrypted by either tool decrypt in the other. As with the scripts, the key derivation is a single unsalted SHA-256 — use a long password.
 
 ## Standalone executable
 
-To get a single file you can copy to any Windows PC — no Python, no venv:
+Every push builds both platforms on GitHub Actions — grab `CloakClip.exe` or `CloakClip-macos.zip` from the run's **Artifacts**. Pushing a version tag (`v0.8.0`) also publishes a Release with both attached.
+
+To build locally instead:
 
 ```powershell
 .\.venv\Scripts\python.exe tools\buildStandalone.py
 ```
 
-Or double-click **`buildStandalone.cmd`**. The result is **`dist\CloakClip.exe`** (about 50 MB, since Qt travels with it). It carries the app icon and is fully self-contained.
+Or double-click **`buildStandalone.cmd`**. The result is **`dist\CloakClip.exe`** (about 50 MB, since Qt travels with it) — or `dist/CloakClip.app` on a Mac. Local and CI builds share `cloakClip.spec`, so they produce the same thing.
 
 To check a build is complete — the bundled icon and the Windows clipboard-history bindings both fail *quietly* if packaging drops them — run:
 

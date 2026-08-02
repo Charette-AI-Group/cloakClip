@@ -8,10 +8,7 @@ from __future__ import annotations
 
 from cloakClip.services import clipboardService
 
-secretMimeTypes = [
-    f'application/x-qt-windows-mime;value="{formatName}"'
-    for formatName in clipboardService.secretFormats
-]
+secretMimeTypes = list(clipboardService.backend.secretMimeData())
 
 
 def writeWithRetry(qtbot, text: str, secret: bool = False) -> None:
@@ -31,8 +28,8 @@ def testSecretMimeDataCarriesExclusionFormats(qapp) -> None:
     mimeData = clipboardService.buildMimeData("hello", secret=True)
 
     assert mimeData.text() == "hello"
-    for mimeType in secretMimeTypes:
-        assert mimeData.data(mimeType) == clipboardService.dwordFalse
+    for mimeType, payload in clipboardService.backend.secretMimeData().items():
+        assert mimeData.data(mimeType) == payload
 
 
 def testWriteAndReadBack(qapp, qtbot) -> None:

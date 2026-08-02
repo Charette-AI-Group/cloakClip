@@ -1,56 +1,54 @@
-"""Clipboard access, with Windows secret handling.
+"""Clipboard access, with whatever secret handling the platform offers.
 
-Text written as a secret carries the registered Windows clipboard formats
-that password managers use, so Windows keeps it out of clipboard history
-(Win+V) and out of cloud sync. Cloaked text is written normally: it is
-encrypted, so there is no reason to hide it from history.
+Reading and writing is Qt's job and works everywhere. Keeping a decrypted
+secret out of the OS clipboard history is not, so that part is delegated
+to a per-platform backend; on a platform without one the app still runs,
+with the protections reported as unavailable rather than pretended.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
+import sys
 
 from PySide6.QtCore import QMimeData
 from PySide6.QtGui import QGuiApplication
 
+from cloakClip.services.platform.clipboardBackend import ClipboardBackend
+
 logger = logging.getLogger(__name__)
 
-try:
-    from winrt.windows.applicationmodel.datatransfer import Clipboard as winrtClipboard
-    from winrt.windows.applicationmodel.datatransfer import StandardDataFormats
-except ImportError:  # pragma: no cover - the package ships Windows-only wheels
-    winrtClipboard = None
-    StandardDataFormats = None
-    logger.warning("winrt clipboard bindings unavailable; history cannot be cleared")
-
-# A DWORD 0 on these registered formats means "do not record this item".
-secretFormats = (
-    "CanIncludeInClipboardHistory",
-    "CanUploadToCloudClipboard",
-    "ExcludeClipboardContentFromMonitorProcessing",
-)
-secretMimeTypes = tuple(
-    f'application/x-qt-windows-mime;value="{formatName}"' for formatName in secretFormats
-)
-dwordFalse = bytes(4)
 writeAttempts = 3
+
+
+def createBackend() -> ClipboardBackend:
+    if sys.platform == "win32":
+        from cloakClip.services.platform.windowsClipboard import WindowsClipboardBackend
+
+        return WindowsClipboardBackend()
+    # macOS and Linux: reading and writing work, protections do not yet.
+    logger.info("No clipboard protection backend for platform %s", sys.platform)
+    return ClipboardBackend()
+
+
+backend = createBackend()
 
 
 def buildMimeData(text: str, secret: bool) -> QMimeData:
     mimeData = QMimeData()
     mimeData.setText(text)
     if secret:
-        for mimeType in secretMimeTypes:
-            mimeData.setData(mimeType, dwordFalse)
+        for mimeType, payload in backend.secretMimeData().items():
+            mimeData.setData(mimeType, payload)
     return mimeData
 
 
 def currentTextIsMarkedSecret() -> bool:
     mimeData = QGuiApplication.clipboard().mimeData()
-    return mimeData is not None and any(
-        mimeData.hasFormat(mimeType) for mimeType in secretMimeTypes
-    )
+    secretTypes = backend.secretMimeData()
+    if mimeData is None or not secretTypes:
+        return False
+    return any(mimeData.hasFormat(mimeType) for mimeType in secretTypes)
 
 
 def readText() -> str:
@@ -82,45 +80,17 @@ def clearText() -> bool:
     return False
 
 
+def supportsHistory() -> bool:
+    return backend.supportsHistory
+
+
 def isHistoryEnabled() -> bool:
-    if winrtClipboard is None:
-        return False
-    return bool(winrtClipboard.is_history_enabled())
+    return backend.isHistoryEnabled()
 
 
 def clearHistory() -> bool:
-    """Purge Windows clipboard history. Items the user pinned are kept."""
-    if winrtClipboard is None:
-        return False
-    try:
-        return bool(winrtClipboard.clear_history())
-    except (OSError, RuntimeError):
-        logger.exception("Clearing clipboard history failed")
-        return False
-
-
-async def _deleteHistoryTextsAsync(texts: set[str]) -> int:
-    result = await winrtClipboard.get_history_items_async()
-    deleted = 0
-    for item in list(result.items):
-        if not item.content.contains(StandardDataFormats.text):
-            continue
-        text = await item.content.get_text_async()
-        if text in texts and winrtClipboard.delete_item_from_history(item):
-            deleted += 1
-    return deleted
+    return backend.clearHistory()
 
 
 def deleteHistoryTexts(texts: set[str]) -> int:
-    """Delete every Win+V history item whose text matches one of texts.
-
-    Blocking (runs its own event loop) — call from a worker thread or at
-    shutdown, not from the GUI thread during normal use.
-    """
-    if winrtClipboard is None or not texts:
-        return 0
-    try:
-        return asyncio.run(_deleteHistoryTextsAsync(set(texts)))
-    except (OSError, RuntimeError, ValueError):
-        logger.exception("Deleting clipboard history items failed")
-        return 0
+    return backend.deleteHistoryTexts(texts)

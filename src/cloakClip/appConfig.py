@@ -15,6 +15,15 @@ editorName = "Francois Charette, PhD"
 aiAgentName = "Claude - Fable 5"
 copyrightHolder = "Charette AI Group, LLC"
 
+def _appDataBase() -> Path:
+    """Where this OS keeps per-user application data."""
+    if sys.platform == "win32":
+        return Path(os.environ.get("APPDATA", str(Path.home())))
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support"
+    return Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config")))
+
+
 projectRoot = Path(__file__).resolve().parents[2]
 
 # In a PyInstaller build the package lives in an archive, not on disk, so
@@ -24,8 +33,9 @@ if getattr(sys, "frozen", False):
 else:
     resourcesDir = Path(__file__).resolve().parent / "resources"
 
-iconFile = resourcesDir / "cloakClip.ico"
-appDataDir = Path(os.environ.get("APPDATA", str(Path.home()))) / appName
+# macOS has no use for .ico; both files are produced by tools/makeIcon.py.
+iconFile = resourcesDir / ("cloakClip.png" if sys.platform == "darwin" else "cloakClip.ico")
+appDataDir = _appDataBase() / appName
 passwordHistoryFile = appDataDir / "passwordHistory.bin"
 settingsFile = appDataDir / "settings.ini"
 maxPasswordHistory = 10
