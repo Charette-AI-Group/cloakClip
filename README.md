@@ -43,6 +43,30 @@ Every cloak generates a fresh random initialization vector, so cloaking the same
 
 The scheme is identical to the PowerShell scripts (AES-256-CBC, key = SHA-256 of the password, random 16-byte IV prepended, Base64): strings encrypted by either tool decrypt in the other. As with the scripts, the key derivation is a single unsalted SHA-256 — use a long password.
 
+## Standalone executable
+
+To get a single file you can copy to any Windows PC — no Python, no venv:
+
+```powershell
+.\.venv\Scripts\python.exe tools\buildStandalone.py
+```
+
+Or double-click **`buildStandalone.cmd`**. The result is **`dist\CloakClip.exe`** (about 50 MB, since Qt travels with it). It carries the app icon and is fully self-contained.
+
+To check a build is complete — the bundled icon and the Windows clipboard-history bindings both fail *quietly* if packaging drops them — run:
+
+```powershell
+.\dist\CloakClip.exe --selftest report.txt
+```
+
+It exits 0 and writes a short report when everything is present.
+
+The icon itself is generated, not hand-drawn; edit `tools/makeIcon.py` and re-run it to change the artwork:
+
+```powershell
+.\.venv\Scripts\python.exe tools\makeIcon.py
+```
+
 ## One-time setup
 
 ```powershell

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 appName = "CloakClip"
@@ -15,7 +16,15 @@ aiAgentName = "Claude - Fable 5"
 copyrightHolder = "Charette AI Group, LLC"
 
 projectRoot = Path(__file__).resolve().parents[2]
-resourcesDir = Path(__file__).resolve().parent / "resources"
+
+# In a PyInstaller build the package lives in an archive, not on disk, so
+# bundled files are read from the extraction directory instead.
+if getattr(sys, "frozen", False):
+    resourcesDir = Path(getattr(sys, "_MEIPASS", projectRoot)) / "resources"
+else:
+    resourcesDir = Path(__file__).resolve().parent / "resources"
+
+iconFile = resourcesDir / "cloakClip.ico"
 appDataDir = Path(os.environ.get("APPDATA", str(Path.home()))) / appName
 passwordHistoryFile = appDataDir / "passwordHistory.bin"
 maxPasswordHistory = 10
