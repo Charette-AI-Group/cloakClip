@@ -11,7 +11,7 @@ from PySide6.QtGui import QAction, QCloseEvent, QGuiApplication, QKeySequence
 from PySide6.QtWidgets import QLabel, QMainWindow, QMessageBox
 
 from cloakClip import appConfig
-from cloakClip.services import clipboardService, passwordHistoryService
+from cloakClip.services import clipboardService, passwordHistoryService, windowStateService
 from cloakClip.ui.clipboardTab import ClipboardTab
 from cloakClip.ui.dialogs.passwordDialog import PasswordDialog
 from cloakClip.ui.manualTab import ManualTab
@@ -46,6 +46,7 @@ class MainWindow(QMainWindow):
         self.statusBar().addPermanentWidget(self.passwordLabel)
         self.statusBar().showMessage("Ready")
 
+        self.restoreWindowGeometry()
         QGuiApplication.clipboard().dataChanged.connect(self.guardSecretReappearance)
 
     def buildMenuBar(self) -> None:
@@ -126,6 +127,27 @@ class MainWindow(QMainWindow):
         if self.activePassword:
             passwordHistoryService.rememberPassword(self.activePassword)
 
+    # -------------------------------------------------------- window state
+
+    def restoreWindowGeometry(self) -> None:
+        geometry = windowStateService.loadGeometry()
+        if geometry is not None and self.restoreGeometry(geometry):
+            self.moveOnScreenIfStranded()
+
+    def moveOnScreenIfStranded(self) -> None:
+        # A saved position can point at a monitor that is no longer attached,
+        # which would restore the window somewhere the user cannot reach.
+        frame = self.frameGeometry()
+        if any(
+            screen.availableGeometry().intersects(frame)
+            for screen in QGuiApplication.screens()
+        ):
+            return
+        self.resize(appConfig.defaultWindowWidth, appConfig.defaultWindowHeight)
+        primary = QGuiApplication.primaryScreen()
+        if primary is not None:
+            self.move(primary.availableGeometry().center() - self.rect().center())
+
     # ----------------------------------------------------- shared clipboard
 
     def statusMessage(self, message: str) -> None:
@@ -182,6 +204,7 @@ class MainWindow(QMainWindow):
             self.statusMessage("Clipboard cleared; clipboard history was unavailable.")
 
     def closeEvent(self, event: QCloseEvent) -> None:
+        windowStateService.saveGeometry(self.saveGeometry())
         # Never leave an uncloaked secret behind. Cloaked text is harmless and
         # is left alone so it can still be pasted after the window closes.
         if self.lastWriteWasSecret and clipboardService.readText() == self.lastClipboardWrite:

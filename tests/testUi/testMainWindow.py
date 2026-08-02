@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from PySide6.QtCore import QSize
+from PySide6.QtGui import QGuiApplication
+
+from cloakClip import appConfig
 from cloakClip.services import clipboardService, passwordHistoryService
 from cloakClip.services.cryptoService import encryptText
 from cloakClip.ui.dialogs.passwordDialog import PasswordDialog
+from cloakClip.ui.mainWindow import MainWindow
 
 
 def testMainWindowOpens(window) -> None:
@@ -175,10 +180,43 @@ def testClosingLeavesUnrelatedClipboardAlone(window, qtbot, setClipboard) -> Non
     assert clipboardService.readText() == "the user's own clipboard content"
 
 
+def testWindowRemembersItsGeometry(window, qtbot) -> None:
+    window.resize(701, 503)
+    qtbot.waitUntil(lambda: window.size().width() == 701, timeout=5000)
+
+    window.close()
+
+    reopened = MainWindow()
+    qtbot.addWidget(reopened)
+    reopened.show()
+
+    assert reopened.size() == QSize(701, 503)
+
+
+def testFirstRunUsesTheDefaultSize(window) -> None:
+    # Nothing saved yet (the settings file is isolated per test).
+    assert window.size() == QSize(
+        appConfig.defaultWindowWidth, appConfig.defaultWindowHeight
+    )
+
+
+def testStrandedWindowIsBroughtBackOnScreen(window, qtbot) -> None:
+    # Simulate a saved position on a monitor that is no longer attached.
+    window.setGeometry(-9000, -9000, 400, 300)
+    window.moveOnScreenIfStranded()
+
+    frame = window.frameGeometry()
+    assert any(
+        screen.availableGeometry().intersects(frame)
+        for screen in QGuiApplication.screens()
+    )
+
+
 def testAboutTextContents(window) -> None:
     aboutText = window.buildAboutText()
 
     assert "CloakClip" in aboutText
+    assert "Version 0.8.0" in aboutText
     assert "Editor: Francois Charette, PhD" in aboutText
     assert "AI Agent: Claude - Fable 5" in aboutText
     assert "Charette AI Group, LLC" in aboutText

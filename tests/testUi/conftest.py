@@ -30,6 +30,12 @@ def isolatedPasswordHistory(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolatedSettings(tmp_path, monkeypatch):
+    """Keep tests away from the real remembered window position."""
+    monkeypatch.setattr(appConfig, "settingsFile", tmp_path / "settings.ini")
+
+
+@pytest.fixture(autouse=True)
 def noRealPasswordDialog(monkeypatch):
     """Never open a real modal dialog — it would block the suite forever.
 

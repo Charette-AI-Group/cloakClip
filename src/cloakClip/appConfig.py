@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 appName = "CloakClip"
-appVersion = "0.1.0"
+appVersion = "0.8.0"
 organizationName = "Charette-AI-Group"
 
 # Help > About contents
@@ -27,6 +27,7 @@ else:
 iconFile = resourcesDir / "cloakClip.ico"
 appDataDir = Path(os.environ.get("APPDATA", str(Path.home()))) / appName
 passwordHistoryFile = appDataDir / "passwordHistory.bin"
+settingsFile = appDataDir / "settings.ini"
 maxPasswordHistory = 10
 windowTitle = appName
 defaultWindowWidth = 620

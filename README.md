@@ -20,6 +20,10 @@ A password only enters the history after it *works* — a successful uncloak, or
 
 The history is stored encrypted with Windows DPAPI in `%APPDATA%\CloakClip\passwordHistory.bin`, tied to your Windows account: unreadable from other accounts or machines, but decryptable by any program running as you. If you don't want passwords kept at all, use **Password > Clear Password History**.
 
+## Window position
+
+CloakClip reopens at the size and position it had when you closed it, remembered in `%APPDATA%\CloakClip\settings.ini`. Delete that file to go back to the default size. If the window was last on a monitor that is no longer attached, it is recentred on the primary screen rather than restored off-screen.
+
 A wrong password, or text that was not encrypted, shows a message in the status bar and changes nothing.
 
 **Clear Clipboard & History** (on the Clipboard tab) empties the clipboard and purges Windows clipboard history (Win+V), which is the way to clean up plain text that *other* apps copied — for example the password you copied out of an email in order to cloak it. Items you pinned in Win+V are kept.
