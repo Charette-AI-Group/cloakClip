@@ -38,6 +38,11 @@ class ManualTab(QWidget):
         self._syncing = False
         # Which field the user last edited — the sync source of truth.
         self._lastSource: str | None = None
+        # The password dialog is offered once when a sync needs a password;
+        # dismissing it falls back to a status-bar hint rather than nagging
+        # on every keystroke.
+        self._promptingPassword = False
+        self._passwordPromptDeclined = False
 
         layout = QVBoxLayout(self)
 
@@ -97,8 +102,25 @@ class ManualTab(QWidget):
         self._lastSource = "cloak"
         self.syncTimer.start()
 
+    def requirePassword(self) -> str | None:
+        """The active password, offering the dialog once if there is none."""
+        if self.window.activePassword:
+            return self.window.activePassword
+        if not (self._passwordPromptDeclined or self._promptingPassword):
+            self._promptingPassword = True
+            try:
+                self.window.ensurePassword()
+            finally:
+                self._promptingPassword = False
+            if self.window.activePassword:
+                return self.window.activePassword
+            self._passwordPromptDeclined = True
+        self.window.statusMessage("Select a password (Ctrl+P) to continue.")
+        return None
+
     def onPasswordActivated(self) -> None:
         # A password became active; run the sync that was waiting for one.
+        self._passwordPromptDeclined = False
         if self._lastSource is None:
             if self.plainEdit.toPlainText():
                 self._lastSource = "plain"
@@ -125,9 +147,8 @@ class ManualTab(QWidget):
         if not text:
             self.setFieldText(self.cloakEdit, "")
             return
-        password = self.window.activePassword
-        if not password:
-            self.window.statusMessage("Select a password (Ctrl+P) to start cloaking.")
+        password = self.requirePassword()
+        if password is None:
             return
         self.setFieldText(self.cloakEdit, encryptText(text, password))
         self.window.statusMessage("Cloaked below — updates live as you type.")
@@ -137,9 +158,8 @@ class ManualTab(QWidget):
         if not text:
             self.setFieldText(self.plainEdit, "")
             return
-        password = self.window.activePassword
-        if not password:
-            self.window.statusMessage("Select a password (Ctrl+P) to uncloak.")
+        password = self.requirePassword()
+        if password is None:
             return
         try:
             plainText = decryptText(text.strip(), password)
@@ -158,6 +178,7 @@ class ManualTab(QWidget):
     def clearFields(self) -> None:
         self.syncTimer.stop()
         self._lastSource = None
+        self._passwordPromptDeclined = False
         self.setFieldText(self.plainEdit, "")
         self.setFieldText(self.cloakEdit, "")
 

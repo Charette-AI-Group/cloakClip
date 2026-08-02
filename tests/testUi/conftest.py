@@ -11,6 +11,7 @@ import pytest
 
 from cloakClip import appConfig
 from cloakClip.services import clipboardService
+from cloakClip.ui.dialogs.passwordDialog import PasswordDialog
 from cloakClip.ui.mainWindow import MainWindow
 
 
@@ -26,6 +27,18 @@ def setClipboard(qtbot):
 @pytest.fixture(autouse=True)
 def isolatedPasswordHistory(tmp_path, monkeypatch):
     monkeypatch.setattr(appConfig, "passwordHistoryFile", tmp_path / "passwordHistory.bin")
+
+
+@pytest.fixture(autouse=True)
+def noRealPasswordDialog(monkeypatch):
+    """Never open a real modal dialog — it would block the suite forever.
+
+    Declining is the default; tests that want a password supplied override
+    getPassword themselves.
+    """
+    monkeypatch.setattr(
+        PasswordDialog, "getPassword", staticmethod(lambda parent=None: None)
+    )
 
 
 @pytest.fixture(autouse=True)

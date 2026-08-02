@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from cloakClip.services import clipboardService, passwordHistoryService
 from cloakClip.services.cryptoService import decryptText, encryptText
+from cloakClip.ui.dialogs.passwordDialog import PasswordDialog
 
 
 def cloakFieldDecryptsTo(window, expected: str, password: str) -> bool:
@@ -89,19 +90,57 @@ def testSuccessfulUncloakRemembersPassword(window, qtbot) -> None:
     assert passwordHistoryService.loadPasswords() == ["good-pw!"]
 
 
-def testTypingWithoutPasswordHintsThenSyncsWhenSelected(window, qtbot) -> None:
-    window.manualTab.plainEdit.setPlainText("waiting for a password")
+def testTypingWithoutPasswordPromptsDialog(window, qtbot, monkeypatch) -> None:
+    monkeypatch.setattr(
+        PasswordDialog, "getPassword", staticmethod(lambda parent=None: "dialog-pw")
+    )
 
+    window.manualTab.plainEdit.setPlainText("typed before choosing a password")
+
+    qtbot.waitUntil(
+        lambda: cloakFieldDecryptsTo(window, "typed before choosing a password", "dialog-pw"),
+        timeout=5000,
+    )
+    assert window.activePassword == "dialog-pw"
+
+
+def testPastingCloakedWithoutPasswordPromptsDialog(window, qtbot, monkeypatch) -> None:
+    monkeypatch.setattr(
+        PasswordDialog, "getPassword", staticmethod(lambda parent=None: "dialog-pw")
+    )
+
+    window.manualTab.cloakEdit.setPlainText(encryptText("hidden message", "dialog-pw"))
+
+    qtbot.waitUntil(
+        lambda: window.manualTab.plainEdit.toPlainText() == "hidden message", timeout=5000
+    )
+
+
+def testDismissingDialogHintsAndDoesNotNag(window, qtbot, monkeypatch) -> None:
+    prompts: list[int] = []
+
+    def declinedDialog(parent=None) -> None:
+        prompts.append(1)
+        return None
+
+    monkeypatch.setattr(PasswordDialog, "getPassword", staticmethod(declinedDialog))
+
+    window.manualTab.plainEdit.setPlainText("first attempt")
     qtbot.waitUntil(
         lambda: "Select a password" in window.statusBar().currentMessage(), timeout=5000
     )
     assert window.manualTab.cloakEdit.toPlainText() == ""
 
-    window.usePassword("late-pw")
+    # Continuing to type must not reopen the dialog over and over.
+    window.manualTab.plainEdit.setPlainText("still typing away")
+    qtbot.wait(600)
 
+    assert len(prompts) == 1
+
+    # Choosing a password from the menu resumes the sync.
+    window.usePassword("late-pw")
     qtbot.waitUntil(
-        lambda: cloakFieldDecryptsTo(window, "waiting for a password", "late-pw"),
-        timeout=5000,
+        lambda: cloakFieldDecryptsTo(window, "still typing away", "late-pw"), timeout=5000
     )
 
 
