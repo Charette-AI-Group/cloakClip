@@ -44,7 +44,9 @@ class ManualTab(QWidget):
         plainHeader = QHBoxLayout()
         plainHeader.addWidget(QLabel("Plain text (uncloaked):"))
         plainHeader.addStretch()
+        self.plainPasteButton = QPushButton("Paste")
         self.plainCopyButton = QPushButton("Copy")
+        plainHeader.addWidget(self.plainPasteButton)
         plainHeader.addWidget(self.plainCopyButton)
         layout.addLayout(plainHeader)
 
@@ -77,6 +79,7 @@ class ManualTab(QWidget):
         self.plainEdit.textChanged.connect(self.onPlainEdited)
         self.cloakEdit.textChanged.connect(self.onCloakEdited)
         self.plainCopyButton.clicked.connect(self.onPlainCopyClicked)
+        self.plainPasteButton.clicked.connect(self.onPlainPasteClicked)
         self.cloakCopyButton.clicked.connect(self.onCloakCopyClicked)
         self.cloakPasteButton.clicked.connect(self.onCloakPasteClicked)
 
@@ -179,6 +182,10 @@ class ManualTab(QWidget):
         if self.window.writeClipboard(text, secret=False):
             self.window.rememberActivePassword()
             self.window.statusMessage("Copied — paste it anywhere.")
+
+    def onPlainPasteClicked(self) -> None:
+        self.plainEdit.setPlainText(clipboardService.readText())
+        self.window.statusMessage("Pasted — cloaking...")
 
     def onCloakPasteClicked(self) -> None:
         self.cloakEdit.setPlainText(clipboardService.readText())

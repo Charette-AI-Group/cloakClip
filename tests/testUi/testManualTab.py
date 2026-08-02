@@ -153,6 +153,18 @@ def testCopyWithEmptyFieldsShowsHints(window) -> None:
     assert window.statusBar().currentMessage() == "There is no cloaked text to copy."
 
 
+def testPlainPasteButton(window, qtbot, setClipboard) -> None:
+    setClipboard("pasted plain text")
+    window.usePassword("pw")
+
+    window.manualTab.plainPasteButton.click()
+
+    assert window.manualTab.plainEdit.toPlainText() == "pasted plain text"
+    qtbot.waitUntil(
+        lambda: cloakFieldDecryptsTo(window, "pasted plain text", "pw"), timeout=5000
+    )
+
+
 def testCloakPasteButton(window, qtbot, setClipboard) -> None:
     cloaked = encryptText("pasted secret", "pw")
     setClipboard(cloaked)
