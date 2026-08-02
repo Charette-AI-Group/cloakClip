@@ -76,11 +76,15 @@ jobs:
       # The bundled icon and (on Windows) the clipboard-history bindings fail
       # quietly at runtime if packaging drops them, so a build that lost them
       # must not be published as if it were fine.
+      # PowerShell does not wait for GUI-subsystem executables, so the report
+      # must be awaited explicitly or it is read before it exists.
       - name: Verify the build is complete
         if: runner.os == 'Windows'
         run: |
-          .\dist\CloakClip.exe --selftest selftest.txt
+          $proc = Start-Process -FilePath ".\dist\CloakClip.exe" `
+            -ArgumentList "--selftest","selftest.txt" -Wait -PassThru
           Get-Content selftest.txt
+          if ($proc.ExitCode -ne 0) { exit $proc.ExitCode }
 
       - name: Verify the build is complete
         if: runner.os == 'macOS'
