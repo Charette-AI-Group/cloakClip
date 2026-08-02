@@ -8,7 +8,11 @@ The window has two tabs for two ways of working.
 
 **Clipboard tab** — the one-click flow, like the original scripts. The box shows whatever is on the clipboard. Copy text anywhere, click **Cloak Clipboard**, and the clipboard now holds the encrypted string — paste it anywhere. Copy an encrypted string and click **Uncloak Clipboard**, and the clipboard holds the original text, ready to paste (marked secret: kept out of Win+V history and cleared when you close the app).
 
+![Cloaking and uncloaking the clipboard in one click](docs/clipboardTab.gif)
+
 **Manual tab** — two fields that stay in sync, with no buttons to press for either direction. Type in **Plain text** and the **Encrypted** field below fills in as you type; paste an encrypted string into **Encrypted** and the plain text appears above. Each field has its own **Paste** and **Copy** buttons, and both accept normal editing (right-click menu, Ctrl+V, Ctrl+Z). Nothing touches the clipboard until you click a **Copy** button, so reading a message here means the secret never reaches the clipboard at all.
+
+![Typing plain text cloaks it live, and pasting a cloaked string uncloaks it](docs/manualTab.gif)
 
 Two things about this tab are worth knowing. The conversion runs a moment after you stop typing rather than on every keystroke, so the encrypted field settles instead of flickering. And a string you *paste* into the encrypted field is left exactly as pasted — it is only regenerated if you then edit the plain text, at which point it changes completely (see the note on repeated cloaking below). While you are typing a cloaked string by hand, or if the active password is wrong, the plain field simply stays empty with a note in the status bar.
 
@@ -81,6 +85,12 @@ The icon itself is generated, not hand-drawn; edit `tools/makeIcon.py` and re-ru
 
 ```powershell
 .\.venv\Scripts\python.exe tools\makeIcon.py
+```
+
+The demo GIFs above are recorded from the running app, so they cannot drift from the real UI. Re-record them after a UI change:
+
+```powershell
+.\.venv\Scripts\python.exe tools\makeDemoGifs.py
 ```
 
 ## One-time setup
