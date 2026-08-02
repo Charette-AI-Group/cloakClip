@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PySide6.QtCore import QPoint, QRect
 from PySide6.QtWidgets import QDialog, QLineEdit
 
 from cloakClip.services import passwordHistoryService
@@ -66,3 +67,24 @@ def testUseLastPasswordButtonAcceptsWithLastPassword(qtbot) -> None:
 
     assert dialog.result() == QDialog.DialogCode.Accepted
     assert dialog.password() == "hunter2!"
+
+
+def testUseLastPasswordSitsLeftOfOkOnTheSameRow(qtbot) -> None:
+    passwordHistoryService.rememberPassword("hunter2!")
+    dialog = PasswordDialog()
+    qtbot.addWidget(dialog)
+    dialog.show()
+    qtbot.waitUntil(lambda: dialog.lastPasswordButton.width() > 0, timeout=5000)
+
+    # The OK button lives inside the button box, so map both into the
+    # dialog's coordinates before comparing them.
+    def rectInDialog(widget) -> QRect:
+        return QRect(widget.mapTo(dialog, QPoint(0, 0)), widget.size())
+
+    shortcut = rectInDialog(dialog.lastPasswordButton)
+    ok = rectInDialog(dialog.okButton)
+
+    # Same row: vertical centres line up within a pixel or two.
+    assert abs(shortcut.center().y() - ok.center().y()) <= 2
+    # And the shortcut is on the left, clear of the OK button.
+    assert shortcut.right() < ok.left()

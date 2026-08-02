@@ -41,19 +41,25 @@ class PasswordDialog(QDialog):
         self.showPasswordCheck.toggled.connect(self.onShowPasswordToggled)
         layout.addWidget(self.showPasswordCheck)
 
-        passwords = passwordHistoryService.loadPasswords()
-        if passwords:
-            mask = passwordHistoryService.maskPassword(passwords[0])
-            self.lastPasswordButton = QPushButton(f"Use Last Password ({mask})")
-            self.lastPasswordButton.clicked.connect(partial(self.onUseLastPassword, passwords[0]))
-            layout.addWidget(self.lastPasswordButton)
-
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+
+        # One row: the shortcut on the left, OK/Cancel where the platform puts
+        # them. An explicit layout rather than a button-box role, whose side
+        # depends on the platform style.
+        buttonRow = QHBoxLayout()
+        passwords = passwordHistoryService.loadPasswords()
+        if passwords:
+            mask = passwordHistoryService.maskPassword(passwords[0])
+            self.lastPasswordButton = QPushButton(f"Use Last Password ({mask})")
+            self.lastPasswordButton.clicked.connect(partial(self.onUseLastPassword, passwords[0]))
+            buttonRow.addWidget(self.lastPasswordButton)
+        buttonRow.addStretch()
+        buttonRow.addWidget(buttons)
+        layout.addLayout(buttonRow)
 
         self.okButton = buttons.button(QDialogButtonBox.StandardButton.Ok)
         self.okButton.setEnabled(False)
