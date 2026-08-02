@@ -1,9 +1,15 @@
-"""Manual tab — type or paste text, read the result, copy only on demand."""
+"""Manual tab — plain and cloaked fields that stay in sync live.
+
+Editing the plain-text field re-encrypts it into the cloaked field after a
+short pause; pasting (or editing) a cloaked string decrypts it into the
+plain-text field. No buttons to click for either direction.
+"""
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -19,106 +25,161 @@ from cloakClip.services.cryptoService import CryptoError, decryptText, encryptTe
 if TYPE_CHECKING:
     from cloakClip.ui.mainWindow import MainWindow
 
+syncDelayMs = 300
+
 
 class ManualTab(QWidget):
     def __init__(self, window: MainWindow) -> None:
         super().__init__()
         self.window = window
-        self.resultIsSecret = False
+        # True while this tab writes to its own fields, so the resulting
+        # textChanged signals are not mistaken for user edits (which would
+        # ping-pong forever, since every encryption has a fresh IV).
+        self._syncing = False
+        # Which field the user last edited — the sync source of truth.
+        self._lastSource: str | None = None
 
         layout = QVBoxLayout(self)
 
-        inputHeader = QHBoxLayout()
-        inputHeader.addWidget(QLabel("Text to cloak or uncloak:"))
-        inputHeader.addStretch()
-        self.pasteButton = QPushButton("Paste")
-        inputHeader.addWidget(self.pasteButton)
-        layout.addLayout(inputHeader)
+        plainHeader = QHBoxLayout()
+        plainHeader.addWidget(QLabel("Plain text (uncloaked):"))
+        plainHeader.addStretch()
+        self.plainCopyButton = QPushButton("Copy")
+        plainHeader.addWidget(self.plainCopyButton)
+        layout.addLayout(plainHeader)
 
-        self.inputEdit = QPlainTextEdit()
-        self.inputEdit.setPlaceholderText("Type here, or use Paste.")
-        layout.addWidget(self.inputEdit)
+        self.plainEdit = QPlainTextEdit()
+        self.plainEdit.setPlaceholderText(
+            "Type the text to protect here — the cloaked version appears below as you type."
+        )
+        layout.addWidget(self.plainEdit)
 
-        actionRow = QHBoxLayout()
-        self.cloakButton = QPushButton("Cloak")
-        self.uncloakButton = QPushButton("Uncloak")
-        actionRow.addWidget(self.cloakButton)
-        actionRow.addWidget(self.uncloakButton)
-        layout.addLayout(actionRow)
+        cloakHeader = QHBoxLayout()
+        cloakHeader.addWidget(QLabel("Encrypted (cloaked):"))
+        cloakHeader.addStretch()
+        self.cloakPasteButton = QPushButton("Paste")
+        self.cloakCopyButton = QPushButton("Copy")
+        cloakHeader.addWidget(self.cloakPasteButton)
+        cloakHeader.addWidget(self.cloakCopyButton)
+        layout.addLayout(cloakHeader)
 
-        resultHeader = QHBoxLayout()
-        resultHeader.addWidget(QLabel("Result:"))
-        resultHeader.addStretch()
-        self.copyButton = QPushButton("Copy")
-        resultHeader.addWidget(self.copyButton)
-        layout.addLayout(resultHeader)
+        self.cloakEdit = QPlainTextEdit()
+        self.cloakEdit.setPlaceholderText(
+            "Paste an encrypted text here — it uncloaks above automatically."
+        )
+        layout.addWidget(self.cloakEdit)
 
-        self.outputEdit = QPlainTextEdit()
-        self.outputEdit.setReadOnly(True)
-        self.outputEdit.setPlaceholderText("The cloaked or uncloaked text appears here.")
-        layout.addWidget(self.outputEdit)
+        self.syncTimer = QTimer(self)
+        self.syncTimer.setSingleShot(True)
+        self.syncTimer.setInterval(syncDelayMs)
+        self.syncTimer.timeout.connect(self.syncNow)
 
-        self.cloakButton.clicked.connect(self.onCloakClicked)
-        self.uncloakButton.clicked.connect(self.onUncloakClicked)
-        self.pasteButton.clicked.connect(self.onPasteClicked)
-        self.copyButton.clicked.connect(self.onCopyClicked)
+        self.plainEdit.textChanged.connect(self.onPlainEdited)
+        self.cloakEdit.textChanged.connect(self.onCloakEdited)
+        self.plainCopyButton.clicked.connect(self.onPlainCopyClicked)
+        self.cloakCopyButton.clicked.connect(self.onCloakCopyClicked)
+        self.cloakPasteButton.clicked.connect(self.onCloakPasteClicked)
 
-    def checkedInput(self, emptyMessage: str) -> str | None:
-        text = self.inputEdit.toPlainText()
+    # ------------------------------------------------------------- syncing
+
+    def onPlainEdited(self) -> None:
+        if self._syncing:
+            return
+        self._lastSource = "plain"
+        self.syncTimer.start()
+
+    def onCloakEdited(self) -> None:
+        if self._syncing:
+            return
+        self._lastSource = "cloak"
+        self.syncTimer.start()
+
+    def onPasswordActivated(self) -> None:
+        # A password became active; run the sync that was waiting for one.
+        if self._lastSource is None:
+            if self.plainEdit.toPlainText():
+                self._lastSource = "plain"
+            elif self.cloakEdit.toPlainText():
+                self._lastSource = "cloak"
+        if self._lastSource is not None:
+            self.syncTimer.start()
+
+    def setFieldText(self, field: QPlainTextEdit, text: str) -> None:
+        self._syncing = True
+        try:
+            field.setPlainText(text)
+        finally:
+            self._syncing = False
+
+    def syncNow(self) -> None:
+        if self._lastSource == "plain":
+            self.encryptFromPlain()
+        elif self._lastSource == "cloak":
+            self.decryptFromCloak()
+
+    def encryptFromPlain(self) -> None:
+        text = self.plainEdit.toPlainText()
         if not text:
-            self.window.statusMessage(emptyMessage)
-            return None
-        return text
-
-    def showResult(self, text: str, secret: bool) -> None:
-        self.outputEdit.setPlainText(text)
-        self.resultIsSecret = secret
-
-    def onCloakClicked(self) -> None:
-        text = self.checkedInput("Nothing to cloak — type or paste some text first.")
-        if text is None:
+            self.setFieldText(self.cloakEdit, "")
             return
-        password = self.window.ensurePassword()
-        if password is None:
+        password = self.window.activePassword
+        if not password:
+            self.window.statusMessage("Select a password (Ctrl+P) to start cloaking.")
             return
-        self.window.rememberActivePassword()
-        self.showResult(encryptText(text, password), secret=False)
-        self.window.statusMessage("Cloaked — click Copy to put it on the clipboard.")
+        self.setFieldText(self.cloakEdit, encryptText(text, password))
+        self.window.statusMessage("Cloaked below — updates live as you type.")
 
-    def onUncloakClicked(self) -> None:
-        text = self.checkedInput("Nothing to uncloak — paste an encrypted text first.")
-        if text is None:
+    def decryptFromCloak(self) -> None:
+        text = self.cloakEdit.toPlainText()
+        if not text:
+            self.setFieldText(self.plainEdit, "")
             return
-        password = self.window.ensurePassword()
-        if password is None:
+        password = self.window.activePassword
+        if not password:
+            self.window.statusMessage("Select a password (Ctrl+P) to uncloak.")
             return
         try:
-            plainText = decryptText(text, password)
-        except CryptoError as exc:
-            self.window.statusMessage(str(exc))
+            plainText = decryptText(text.strip(), password)
+        except CryptoError:
+            self.setFieldText(self.plainEdit, "")
+            self.window.statusMessage(
+                "Not a complete cloaked text yet — or not the right password."
+            )
             return
-        self.window.rememberActivePassword()
-        # Deliberately not copied: read it here and the secret never reaches
-        # the clipboard at all. Registered anyway, in case the user copies the
-        # shown text by hand.
+        # On-screen only; registered so manual re-copies of it stay protected.
         self.window.registerSecret(plainText)
-        self.showResult(plainText, secret=True)
-        self.window.statusMessage("Uncloaked below — click Copy only if you need to paste it.")
+        self.window.rememberActivePassword()
+        self.setFieldText(self.plainEdit, plainText)
+        self.window.statusMessage("Uncloaked above — click its Copy only if you need to paste it.")
 
-    def onPasteClicked(self) -> None:
-        self.inputEdit.setPlainText(clipboardService.readText())
-        self.window.statusMessage("Pasted from the clipboard.")
+    def clearFields(self) -> None:
+        self.syncTimer.stop()
+        self._lastSource = None
+        self.setFieldText(self.plainEdit, "")
+        self.setFieldText(self.cloakEdit, "")
 
-    def onCopyClicked(self) -> None:
-        text = self.outputEdit.toPlainText()
+    # ------------------------------------------------------------- buttons
+
+    def onPlainCopyClicked(self) -> None:
+        text = self.plainEdit.toPlainText()
         if not text:
-            self.window.statusMessage("There is no result to copy yet.")
+            self.window.statusMessage("There is no plain text to copy.")
             return
-        if not self.window.writeClipboard(text, secret=self.resultIsSecret):
-            return
-        if self.resultIsSecret:
+        self.window.registerSecret(text)
+        if self.window.writeClipboard(text, secret=True):
             self.window.statusMessage(
                 "Copied — kept out of clipboard history, and cleared when you close CloakClip."
             )
-        else:
+
+    def onCloakCopyClicked(self) -> None:
+        text = self.cloakEdit.toPlainText()
+        if not text:
+            self.window.statusMessage("There is no cloaked text to copy.")
+            return
+        if self.window.writeClipboard(text, secret=False):
+            self.window.rememberActivePassword()
             self.window.statusMessage("Copied — paste it anywhere.")
+
+    def onCloakPasteClicked(self) -> None:
+        self.cloakEdit.setPlainText(clipboardService.readText())
+        self.window.statusMessage("Pasted — uncloaking...")

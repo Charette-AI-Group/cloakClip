@@ -101,6 +101,7 @@ class MainWindow(QMainWindow):
         mask = passwordHistoryService.maskPassword(password)
         self.passwordLabel.setText(f"Password: {mask}")
         self.statusMessage(f"Password {mask} selected.")
+        self.manualTab.onPasswordActivated()
 
     def onNewPassword(self) -> None:
         password = PasswordDialog.getPassword(self)
@@ -171,7 +172,7 @@ class MainWindow(QMainWindow):
         historyCleared = clipboardService.clearHistory()
         self.lastClipboardWrite = None
         self.lastWriteWasSecret = False
-        self.manualTab.outputEdit.clear()
+        self.manualTab.clearFields()
 
         if not clipboardCleared:
             self.statusMessage("The clipboard is busy — please try again.")

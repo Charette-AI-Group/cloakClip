@@ -1,62 +1,143 @@
-"""Tests for the Manual tab: explicit input, result, Copy and Paste."""
+"""Tests for the Manual tab: live sync between plain and cloaked fields."""
 
 from __future__ import annotations
 
-from cloakClip.services import clipboardService
+from cloakClip.services import clipboardService, passwordHistoryService
 from cloakClip.services.cryptoService import decryptText, encryptText
-from cloakClip.ui.dialogs.passwordDialog import PasswordDialog
 
 
-def testCloakShowsResultWithoutCopying(window, qtbot, setClipboard) -> None:
-    setClipboard("untouched clipboard")
-    window.manualTab.inputEdit.setPlainText("my secret note")
+def cloakFieldDecryptsTo(window, expected: str, password: str) -> bool:
+    try:
+        return decryptText(window.manualTab.cloakEdit.toPlainText(), password) == expected
+    except Exception:
+        return False
+
+
+def testTypingPlainTextCloaksLive(window, qtbot) -> None:
     window.usePassword("hunter2!")
 
-    window.manualTab.cloakButton.click()
+    window.manualTab.plainEdit.setPlainText("my secret note")
 
-    cloaked = window.manualTab.outputEdit.toPlainText()
-    assert decryptText(cloaked, "hunter2!") == "my secret note"
-    # Manual means manual: nothing is copied until Copy is clicked.
-    assert clipboardService.readText() == "untouched clipboard"
-    assert "click Copy" in window.statusBar().currentMessage()
+    qtbot.waitUntil(lambda: cloakFieldDecryptsTo(window, "my secret note", "hunter2!"),
+                    timeout=5000)
 
 
-def testUncloakShowsPlainTextWithoutCopying(window, qtbot, setClipboard) -> None:
+def testEditingPlainTextRecloaks(window, qtbot) -> None:
+    window.usePassword("hunter2!")
+    window.manualTab.plainEdit.setPlainText("first version")
+    qtbot.waitUntil(lambda: cloakFieldDecryptsTo(window, "first version", "hunter2!"),
+                    timeout=5000)
+    firstCloak = window.manualTab.cloakEdit.toPlainText()
+
+    window.manualTab.plainEdit.setPlainText("second version")
+
+    qtbot.waitUntil(lambda: cloakFieldDecryptsTo(window, "second version", "hunter2!"),
+                    timeout=5000)
+    assert window.manualTab.cloakEdit.toPlainText() != firstCloak
+
+
+def testPastingCloakedTextUncloaksLive(window, qtbot) -> None:
     cloaked = encryptText("the original", "pw123")
-    setClipboard(cloaked)
-    window.manualTab.inputEdit.setPlainText(cloaked)
     window.usePassword("pw123")
 
-    window.manualTab.uncloakButton.click()
+    window.manualTab.cloakEdit.setPlainText(cloaked)
 
-    assert window.manualTab.outputEdit.toPlainText() == "the original"
-    # The whole point: the secret is on screen but never on the clipboard.
-    assert clipboardService.readText() == cloaked
-    assert "click Copy" in window.statusBar().currentMessage()
+    qtbot.waitUntil(
+        lambda: window.manualTab.plainEdit.toPlainText() == "the original", timeout=5000
+    )
+    # The pasted string is left exactly as pasted, not re-encrypted.
+    assert window.manualTab.cloakEdit.toPlainText() == cloaked
+    assert "the original" in window.sessionSecrets
 
 
-def testCopyPutsCloakedResultOnClipboardPlain(window, qtbot) -> None:
-    window.manualTab.inputEdit.setPlainText("note")
+def testUncloakingDoesNotTouchClipboard(window, qtbot, setClipboard) -> None:
+    cloaked = encryptText("screen only", "pw")
+    setClipboard(cloaked)
     window.usePassword("pw")
-    window.manualTab.cloakButton.click()
-    cloaked = window.manualTab.outputEdit.toPlainText()
+
+    window.manualTab.cloakEdit.setPlainText(cloaked)
+
+    qtbot.waitUntil(
+        lambda: window.manualTab.plainEdit.toPlainText() == "screen only", timeout=5000
+    )
+    assert clipboardService.readText() == cloaked
+
+
+def testWrongPasswordShowsHintAndClearsPlain(window, qtbot) -> None:
+    window.usePassword("wrong password")
+    window.manualTab.plainEdit.setPlainText("stale")
+
+    window.manualTab.cloakEdit.setPlainText(encryptText("the original", "right password"))
+
+    qtbot.waitUntil(
+        lambda: "not the right password" in window.statusBar().currentMessage(),
+        timeout=5000,
+    )
+    assert window.manualTab.plainEdit.toPlainText() == ""
+    # A password that never decrypted anything is not remembered.
+    assert "wrong password" not in passwordHistoryService.loadPasswords()
+
+
+def testSuccessfulUncloakRemembersPassword(window, qtbot) -> None:
+    window.usePassword("good-pw!")
+
+    window.manualTab.cloakEdit.setPlainText(encryptText("hello", "good-pw!"))
+
+    qtbot.waitUntil(
+        lambda: window.manualTab.plainEdit.toPlainText() == "hello", timeout=5000
+    )
+    assert passwordHistoryService.loadPasswords() == ["good-pw!"]
+
+
+def testTypingWithoutPasswordHintsThenSyncsWhenSelected(window, qtbot) -> None:
+    window.manualTab.plainEdit.setPlainText("waiting for a password")
+
+    qtbot.waitUntil(
+        lambda: "Select a password" in window.statusBar().currentMessage(), timeout=5000
+    )
+    assert window.manualTab.cloakEdit.toPlainText() == ""
+
+    window.usePassword("late-pw")
+
+    qtbot.waitUntil(
+        lambda: cloakFieldDecryptsTo(window, "waiting for a password", "late-pw"),
+        timeout=5000,
+    )
+
+
+def testClearingPlainClearsCloak(window, qtbot) -> None:
+    window.usePassword("pw")
+    window.manualTab.plainEdit.setPlainText("something")
+    qtbot.waitUntil(lambda: window.manualTab.cloakEdit.toPlainText() != "", timeout=5000)
+
+    window.manualTab.plainEdit.setPlainText("")
+
+    qtbot.waitUntil(lambda: window.manualTab.cloakEdit.toPlainText() == "", timeout=5000)
+
+
+def testCloakCopyButton(window, qtbot) -> None:
+    window.usePassword("pw")
+    window.manualTab.plainEdit.setPlainText("note")
+    qtbot.waitUntil(lambda: window.manualTab.cloakEdit.toPlainText() != "", timeout=5000)
+    cloaked = window.manualTab.cloakEdit.toPlainText()
 
     def copySucceeded() -> bool:
-        window.manualTab.copyButton.click()
+        window.manualTab.cloakCopyButton.click()
         return clipboardService.readText() == cloaked
 
     qtbot.waitUntil(copySucceeded, timeout=5000)
     assert not window.lastWriteWasSecret
-    assert "Copied" in window.statusBar().currentMessage()
 
 
-def testCopyPutsUncloakedResultOnClipboardAsSecret(window, qtbot) -> None:
-    window.manualTab.inputEdit.setPlainText(encryptText("copy me", "pw"))
+def testPlainCopyButtonIsSecretMarked(window, qtbot) -> None:
     window.usePassword("pw")
-    window.manualTab.uncloakButton.click()
+    window.manualTab.cloakEdit.setPlainText(encryptText("copy me", "pw"))
+    qtbot.waitUntil(
+        lambda: window.manualTab.plainEdit.toPlainText() == "copy me", timeout=5000
+    )
 
     def copySucceeded() -> bool:
-        window.manualTab.copyButton.click()
+        window.manualTab.plainCopyButton.click()
         return clipboardService.readText() == "copy me"
 
     qtbot.waitUntil(copySucceeded, timeout=5000)
@@ -64,66 +145,33 @@ def testCopyPutsUncloakedResultOnClipboardAsSecret(window, qtbot) -> None:
     assert "kept out of clipboard history" in window.statusBar().currentMessage()
 
 
-def testCopyWithoutResultShowsHint(window) -> None:
-    window.manualTab.copyButton.click()
+def testCopyWithEmptyFieldsShowsHints(window) -> None:
+    window.manualTab.plainCopyButton.click()
+    assert window.statusBar().currentMessage() == "There is no plain text to copy."
 
-    assert window.statusBar().currentMessage() == "There is no result to copy yet."
-
-
-def testPasteLoadsClipboardIntoInput(window, qtbot, setClipboard) -> None:
-    setClipboard("pasted content")
-    window.manualTab.inputEdit.setPlainText("")
-
-    window.manualTab.pasteButton.click()
-
-    assert window.manualTab.inputEdit.toPlainText() == "pasted content"
+    window.manualTab.cloakCopyButton.click()
+    assert window.statusBar().currentMessage() == "There is no cloaked text to copy."
 
 
-def testInputDoesNotFollowClipboard(window, qtbot, setClipboard) -> None:
-    window.manualTab.inputEdit.setPlainText("typed by hand")
-
-    setClipboard("copied elsewhere")
-    qtbot.waitUntil(
-        lambda: window.clipboardTab.previewEdit.toPlainText() == "copied elsewhere",
-        timeout=5000,
-    )
-
-    assert window.manualTab.inputEdit.toPlainText() == "typed by hand"
-
-
-def testWrongPasswordShowsError(window) -> None:
-    window.manualTab.inputEdit.setPlainText(encryptText("the original", "right password"))
-    window.usePassword("wrong password")
-
-    window.manualTab.uncloakButton.click()
-
-    assert window.manualTab.outputEdit.toPlainText() == ""
-    assert "Wrong password" in window.statusBar().currentMessage()
-
-
-def testCloakWithoutPasswordPromptsDialog(window, monkeypatch) -> None:
-    monkeypatch.setattr(PasswordDialog, "getPassword", staticmethod(lambda parent=None: "typed-pw"))
-    window.manualTab.inputEdit.setPlainText("something")
-
-    window.manualTab.cloakButton.click()
-
-    assert decryptText(window.manualTab.outputEdit.toPlainText(), "typed-pw") == "something"
-
-
-def testCloakWithCancelledDialogShowsHint(window, monkeypatch) -> None:
-    monkeypatch.setattr(PasswordDialog, "getPassword", staticmethod(lambda parent=None: None))
-    window.manualTab.inputEdit.setPlainText("something")
-
-    window.manualTab.cloakButton.click()
-
-    assert window.manualTab.outputEdit.toPlainText() == ""
-    assert "Enter a password first" in window.statusBar().currentMessage()
-
-
-def testCloakWithEmptyInputShowsHint(window) -> None:
-    window.manualTab.inputEdit.setPlainText("")
+def testCloakPasteButton(window, qtbot, setClipboard) -> None:
+    cloaked = encryptText("pasted secret", "pw")
+    setClipboard(cloaked)
     window.usePassword("pw")
 
-    window.manualTab.cloakButton.click()
+    window.manualTab.cloakPasteButton.click()
 
-    assert "Nothing to cloak" in window.statusBar().currentMessage()
+    assert window.manualTab.cloakEdit.toPlainText() == cloaked
+    qtbot.waitUntil(
+        lambda: window.manualTab.plainEdit.toPlainText() == "pasted secret", timeout=5000
+    )
+
+
+def testClearFieldsEmptiesBoth(window, qtbot) -> None:
+    window.usePassword("pw")
+    window.manualTab.plainEdit.setPlainText("something")
+    qtbot.waitUntil(lambda: window.manualTab.cloakEdit.toPlainText() != "", timeout=5000)
+
+    window.manualTab.clearFields()
+
+    assert window.manualTab.plainEdit.toPlainText() == ""
+    assert window.manualTab.cloakEdit.toPlainText() == ""
