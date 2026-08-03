@@ -303,6 +303,7 @@ class MainWindow(QMainWindow):
         self.lastClipboardWrite = None
         self.lastWriteWasSecret = False
         self.manualTab.clearFields()
+        self.clipboardTab.clearPreview()
 
         if not clipboardCleared:
             self.statusMessage("The clipboard is busy — please try again.")

@@ -111,6 +111,15 @@ def recordClipboardTab(app: QApplication, window: MainWindow) -> None:
     recorder.clickShot(tab.cloakButton)
     recorder.clickShot(tab.uncloakButton)
 
+    # Editing the uncloaked text in place, then sending it back cloaked.
+    for edited in ("Wi-Fi guest password: swordfish — ",
+                   "Wi-Fi guest password: swordfish — changes Friday"):
+        tab.previewEdit.setPlainText(edited)
+        recorder.pump(420)
+        recorder.capture(holdShort)
+    recorder.capture(holdLong)
+    recorder.clickShot(tab.cloakButton)
+
     recorder.save(docsDir / "clipboardTab.gif")
 
 

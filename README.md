@@ -16,6 +16,8 @@ The window has two tabs for two ways of working.
 
 **Clipboard tab** — the one-click flow. The box shows whatever is on the clipboard. Copy text anywhere, click **Cloak Clipboard**, and the clipboard now holds the encrypted string — paste it anywhere. Copy an encrypted string and click **Uncloak Clipboard**, and the clipboard holds the original text, ready to paste (marked secret: kept out of Win+V history and cleared when you close the app).
 
+The box is editable, so a cloaked message can be answered in place: uncloak it, change the wording, and the clipboard follows your edits as you type. Click **Cloak Clipboard** when you are done and paste the reply back into the conversation. Edits to uncloaked text stay marked secret, exactly as the uncloak was.
+
 ![Cloaking and uncloaking the clipboard in one click](docs/clipboardTab.gif)
 
 **Manual tab** — two fields that stay in sync, with no buttons to press for either direction. Type in **Plain text** and the **Encrypted** field below fills in as you type; paste an encrypted string into **Encrypted** and the plain text appears above. Each field has its own **Paste** and **Copy** buttons, and both accept normal editing (right-click menu, Ctrl+V, Ctrl+Z). Nothing touches the clipboard until you click a **Copy** button, so reading a message here means the secret never reaches the clipboard at all.

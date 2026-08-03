@@ -35,6 +35,7 @@ def testUncloakReplacesClipboardMarkedSecret(window, qtbot, setClipboard) -> Non
     # Plain text goes back on the clipboard, but flagged for exit cleanup
     # and excluded from Win+V history.
     assert window.lastWriteWasSecret
+    assert clipboardService.currentTextIsMarkedSecret()
     assert "kept out of clipboard history" in window.statusBar().currentMessage()
 
 
@@ -75,6 +76,67 @@ def testCloakWithEmptyClipboardShowsHint(window, qtbot) -> None:
     window.clipboardTab.cloakButton.click()
 
     assert "Clipboard is empty" in window.statusBar().currentMessage()
+
+
+def testEditingThePreviewUpdatesTheClipboard(window, qtbot, setClipboard) -> None:
+    setClipboard("shopping list")
+
+    window.clipboardTab.previewEdit.setPlainText("shopping list and milk")
+
+    qtbot.waitUntil(
+        lambda: clipboardService.readText() == "shopping list and milk", timeout=5000
+    )
+
+
+def testEditingAnUncloakedSecretStaysProtected(window, qtbot, setClipboard) -> None:
+    setClipboard(encryptText("meet at six", "pw"))
+    window.usePassword("pw")
+    window.clipboardTab.uncloakButton.click()
+    qtbot.waitUntil(lambda: clipboardService.readText() == "meet at six", timeout=5000)
+
+    window.clipboardTab.previewEdit.setPlainText("meet at seven")
+
+    qtbot.waitUntil(lambda: clipboardService.readText() == "meet at seven", timeout=5000)
+    # The edited plain text is still a secret: marked, and tracked for the
+    # exit cleanup and the re-copy guard.
+    assert window.lastWriteWasSecret
+    assert clipboardService.currentTextIsMarkedSecret()
+    assert "meet at seven" in window.sessionSecrets
+
+
+def testCloakingImmediatelyAfterAnEditUsesTheEdit(window, qtbot, setClipboard) -> None:
+    # No wait between typing and clicking: the pending edit must be flushed
+    # first, or the stale clipboard text would be encrypted instead.
+    setClipboard("original text")
+    window.usePassword("pw")
+
+    window.clipboardTab.previewEdit.setPlainText("edited text")
+    window.clipboardTab.cloakButton.click()
+
+    cloaked = window.clipboardTab.previewEdit.toPlainText()
+    assert decryptText(cloaked, "pw") == "edited text"
+
+
+def testEditingPlainTextIsNotMarkedSecret(window, qtbot, setClipboard) -> None:
+    setClipboard("just a note")
+
+    window.clipboardTab.previewEdit.setPlainText("just a longer note")
+
+    qtbot.waitUntil(
+        lambda: clipboardService.readText() == "just a longer note", timeout=5000
+    )
+    assert not window.lastWriteWasSecret
+
+
+def testCloakingShowsTheCloakedTextInThePreview(window, qtbot, setClipboard) -> None:
+    setClipboard("secret note")
+    window.usePassword("pw")
+
+    window.clipboardTab.cloakButton.click()
+
+    shown = window.clipboardTab.previewEdit.toPlainText()
+    assert decryptText(shown, "pw") == "secret note"
+    assert not window.clipboardTab.contentIsSecret
 
 
 def testPreviewFollowsClipboard(window, qtbot, setClipboard) -> None:
