@@ -66,8 +66,9 @@ def purgeCalls(monkeypatch) -> list[set[str]]:
     return calls
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def historyCalls(monkeypatch) -> list[bool]:
+    """Autouse: closing the window can now purge the real Win+V history."""
     calls: list[bool] = []
 
     def fakeClearHistory() -> bool:
@@ -76,6 +77,15 @@ def historyCalls(monkeypatch) -> list[bool]:
 
     monkeypatch.setattr(clipboardService, "clearHistory", fakeClearHistory)
     return calls
+
+
+@pytest.fixture(autouse=True)
+def noRealCloseDialog(monkeypatch):
+    """Never open the modal close dialog — it would block the suite forever.
+
+    Plain "close" is the default; tests covering the dialog override it.
+    """
+    monkeypatch.setattr(MainWindow, "askCloseAction", lambda self: "close")
 
 
 @pytest.fixture

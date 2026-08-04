@@ -49,6 +49,9 @@ class MainWindow(QMainWindow):
         self.lastWriteWasSecret = False
         self.activePassword: str | None = None
         self._applyingTabStyle = False
+        # Set when the user has already chosen how to exit, so the close
+        # dialog is not shown on top of their choice.
+        self._closeWithoutPrompt = False
         # Every plain text uncloaked this session, so re-copies of it can be
         # re-protected and swept out of Win+V history.
         self.sessionSecrets: set[str] = set()
@@ -140,6 +143,11 @@ class MainWindow(QMainWindow):
         self.exitAction.setShortcut(QKeySequence("Ctrl+Q"))
         self.exitAction.triggered.connect(self.close)
         fileMenu.addAction(self.exitAction)
+
+        self.exitAndClearAction = QAction("Exit and Clear &All!", self)
+        self.exitAndClearAction.setShortcut(QKeySequence("Ctrl+Shift+Q"))
+        self.exitAndClearAction.triggered.connect(self.onExitAndClearAll)
+        fileMenu.addAction(self.exitAndClearAction)
 
         self.passwordMenu = self.menuBar().addMenu("&Password")
         self.passwordMenu.aboutToShow.connect(self.rebuildPasswordMenu)
@@ -312,7 +320,53 @@ class MainWindow(QMainWindow):
         else:
             self.statusMessage("Clipboard cleared; clipboard history was unavailable.")
 
+    def buildCloseDialog(self) -> QMessageBox:
+        """The dialog shown when closing without having said what to do."""
+        box = QMessageBox(self)
+        box.setWindowTitle(f"Close {appConfig.appName}")
+        box.setIcon(QMessageBox.Icon.Question)
+        box.setText(f"Close {appConfig.appName}?")
+        box.setInformativeText(
+            "<b>OK</b> clears an uncloaked secret from the clipboard, as usual."
+            "<br><br><b>OK - Clear All!</b> also empties the clipboard entirely and "
+            "purges Windows clipboard history, so nothing from this session is left "
+            "behind — including text that reached the history before CloakClip saw it."
+        )
+        self.closeOkButton = box.addButton("OK", QMessageBox.ButtonRole.AcceptRole)
+        self.closeClearButton = box.addButton(
+            "OK - Clear All!", QMessageBox.ButtonRole.DestructiveRole
+        )
+        box.setDefaultButton(self.closeOkButton)
+        return box
+
+    def askCloseAction(self) -> str | None:
+        """'close', 'clearAndClose', or None to stay open."""
+        box = self.buildCloseDialog()
+        box.exec()
+        clicked = box.clickedButton()
+        if clicked is self.closeClearButton:
+            return "clearAndClose"
+        if clicked is self.closeOkButton:
+            return "close"
+        # Escape or the dialog's own close button: do not exit at all, so a
+        # mistaken click on the window's X costs nothing.
+        return None
+
+    def onExitAndClearAll(self) -> None:
+        self.clearClipboardAndHistory()
+        # Intent is already explicit; do not ask again on the way out.
+        self._closeWithoutPrompt = True
+        self.close()
+
     def closeEvent(self, event: QCloseEvent) -> None:
+        if not self._closeWithoutPrompt:
+            action = self.askCloseAction()
+            if action is None:
+                event.ignore()
+                return
+            if action == "clearAndClose":
+                self.clearClipboardAndHistory()
+
         windowStateService.saveGeometry(self.saveGeometry())
         # Never leave an uncloaked secret behind. Cloaked text is harmless and
         # is left alone so it can still be pasted after the window closes.

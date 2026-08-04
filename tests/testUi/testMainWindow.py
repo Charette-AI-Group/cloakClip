@@ -56,7 +56,9 @@ def testTabLabelsAreEmphasised(window) -> None:
 def testMenuBarStructure(window) -> None:
     menuTitles = [action.text() for action in window.menuBar().actions()]
     assert menuTitles == ["&File", "&Password", "&Help"]
-    assert [a.text() for a in window.fileMenu.actions()] == ["E&xit"]
+    assert [a.text() for a in window.fileMenu.actions()] == [
+        "E&xit", "Exit and Clear &All!"
+    ]
     helpItems = [a.text() for a in window.helpMenu.actions() if not a.isSeparator()]
     assert helpItems == ["&Theme", "&About"]
 
@@ -228,6 +230,71 @@ def testCloseSweepsSessionSecretsFromHistory(window, qtbot, setClipboard, purgeC
 
     assert purgeCalls, "closing must sweep session secrets out of Win+V history"
     assert "sensitive" in purgeCalls[-1]
+
+
+def testExitAndClearAllEmptiesEverything(window, qtbot, setClipboard, historyCalls) -> None:
+    setClipboard("something left over")
+    window.manualTab.plainEdit.setPlainText("draft note")
+
+    window.exitAndClearAction.trigger()
+
+    assert clipboardService.readText() == ""
+    assert historyCalls, "Exit and Clear All must purge clipboard history"
+    assert window.manualTab.plainEdit.toPlainText() == ""
+    assert window.clipboardTab.previewEdit.toPlainText() == ""
+    assert not window.isVisible()
+
+
+def testExitAndClearAllDoesNotAskAgain(window, monkeypatch) -> None:
+    asked: list[int] = []
+    monkeypatch.setattr(
+        MainWindow, "askCloseAction", lambda self: asked.append(1) or "close"
+    )
+
+    window.exitAndClearAction.trigger()
+
+    assert not asked, "the user already said how they wanted to exit"
+
+
+def testCloseDialogOffersBothChoices(window) -> None:
+    box = window.buildCloseDialog()
+
+    labels = [button.text() for button in box.buttons()]
+    assert labels == ["OK", "OK - Clear All!"]
+    assert box.defaultButton() is window.closeOkButton
+    box.deleteLater()
+
+
+def testCloseDialogClearAllPurgesHistory(window, qtbot, setClipboard, monkeypatch,
+                                         historyCalls) -> None:
+    monkeypatch.setattr(MainWindow, "askCloseAction", lambda self: "clearAndClose")
+    setClipboard("leftover secret")
+
+    window.close()
+
+    assert clipboardService.readText() == ""
+    assert historyCalls, "the Clear All choice must purge clipboard history"
+    assert not window.isVisible()
+
+
+def testCloseDialogPlainOkLeavesHistoryAlone(window, qtbot, setClipboard,
+                                             historyCalls) -> None:
+    # The default stub returns "close".
+    setClipboard("the user's own clipboard content")
+
+    window.close()
+
+    assert clipboardService.readText() == "the user's own clipboard content"
+    assert not historyCalls
+    assert not window.isVisible()
+
+
+def testDismissingTheCloseDialogKeepsTheWindowOpen(window, monkeypatch) -> None:
+    monkeypatch.setattr(MainWindow, "askCloseAction", lambda self: None)
+
+    window.close()
+
+    assert window.isVisible(), "Escape on the close dialog must cancel the exit"
 
 
 def testClosingClearsAnUncloakedSecret(window, qtbot, setClipboard) -> None:

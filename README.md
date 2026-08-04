@@ -46,6 +46,12 @@ A wrong password, or text that was not encrypted, shows a message in the status 
 
 **Clear Clipboard & History** (on the Clipboard tab) empties the clipboard and purges Windows clipboard history (Win+V), which is the way to clean up plain text that *other* apps copied — for example the password you copied out of an email in order to cloak it. Items you pinned in Win+V are kept.
 
+## Closing the app
+
+Closing the window asks how you want to leave. **OK** does the usual tidy-up: an uncloaked secret is cleared from the clipboard, and secrets from this session are removed from Win+V history. **OK - Clear All!** additionally empties the clipboard and purges the whole clipboard history, which catches anything the automatic cleanup cannot recognise — most often plain text that another app put in the history before CloakClip ever saw it. **File > Exit and Clear All!** (Ctrl+Shift+Q) does the same in one step, without asking.
+
+Dismissing the dialog with Escape cancels the exit, so a mistaken click on the window's X costs nothing.
+
 ## How your secrets are protected
 
 Windows keeps a history of everything copied (Win+V) and can sync it to the cloud, so a decrypted secret sitting on the clipboard normally outlives both the paste and the app. CloakClip avoids that three ways:
