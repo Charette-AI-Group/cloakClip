@@ -23,6 +23,16 @@ def testTypingPlainTextCloaksLive(window, qtbot) -> None:
                     timeout=5000)
 
 
+def testCloakingRegistersThePlainTextAsASessionSecret(window, qtbot) -> None:
+    window.usePassword("pw")
+
+    window.manualTab.plainEdit.setPlainText("pasted from somewhere else")
+
+    qtbot.waitUntil(
+        lambda: "pasted from somewhere else" in window.sessionSecrets, timeout=5000
+    )
+
+
 def testEditingPlainTextRecloaks(window, qtbot) -> None:
     window.usePassword("hunter2!")
     window.manualTab.plainEdit.setPlainText("first version")

@@ -152,6 +152,10 @@ class ClipboardTab(QWidget):
         password = self.window.ensurePassword()
         if password is None:
             return
+        # Whatever you asked to cloak was worth protecting, and whichever app
+        # you copied it from already recorded it in clipboard history without
+        # any marking. Tracking it gets it swept out on the way out.
+        self.window.registerSecret(text)
         cloaked = encryptText(text, password)
         self.contentIsSecret = False
         # Cloaked text is encrypted, so writing it plainly costs nothing.

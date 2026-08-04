@@ -39,6 +39,29 @@ def testUncloakReplacesClipboardMarkedSecret(window, qtbot, setClipboard) -> Non
     assert "kept out of clipboard history" in window.statusBar().currentMessage()
 
 
+def testCloakingRegistersThePlainTextAsASessionSecret(window, setClipboard) -> None:
+    # The app you copied it from already put this in Win+V, unmarked, before
+    # CloakClip ever saw it — tracking it is what gets it swept on exit.
+    setClipboard("the password I want to send")
+    window.usePassword("pw")
+
+    window.clipboardTab.cloakButton.click()
+
+    assert "the password I want to send" in window.sessionSecrets
+
+
+def testExitSweepsTextThatWasCloaked(window, setClipboard, purgeCalls) -> None:
+    setClipboard("plain text before cloaking")
+    window.usePassword("pw")
+    window.clipboardTab.cloakButton.click()
+    purgeCalls.clear()
+
+    window.close()
+
+    assert purgeCalls, "closing must sweep session secrets from Win+V"
+    assert "plain text before cloaking" in purgeCalls[-1]
+
+
 def testCloakDoesNotMarkSecret(window, qtbot, setClipboard) -> None:
     setClipboard("public once encrypted")
     window.usePassword("pw")

@@ -150,6 +150,9 @@ class ManualTab(QWidget):
         password = self.requirePassword()
         if password is None:
             return
+        # Text you asked to cloak counts as a secret: if it was pasted in, the
+        # app you copied it from already put it in clipboard history unmarked.
+        self.window.registerSecret(text)
         self.setFieldText(self.cloakEdit, encryptText(text, password))
         self.window.statusMessage("Cloaked below — updates live as you type.")
 
