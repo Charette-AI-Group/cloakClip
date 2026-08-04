@@ -48,9 +48,19 @@ A wrong password, or text that was not encrypted, shows a message in the status 
 
 ## Closing the app
 
-Closing the window asks how you want to leave. **OK** does the usual tidy-up: an uncloaked secret is cleared from the clipboard, and secrets from this session are removed from Win+V history. **OK - Clear All!** additionally empties the clipboard and purges the whole clipboard history, which catches anything the automatic cleanup cannot recognise — most often plain text that another app put in the history before CloakClip ever saw it. **File > Exit and Clear All!** (Ctrl+Shift+Q) does the same in one step, without asking.
+Closing the window asks how you want to leave.
 
-Dismissing the dialog with Escape cancels the exit, so a mistaken click on the window's X costs nothing.
+**OK** does the automatic tidy-up described above: an uncloaked secret is cleared from the clipboard, and every secret from this session is removed from Windows clipboard history.
+
+**OK - Clear All!** does all of that, and then empties the clipboard and purges the clipboard history outright.
+
+That second option is deliberately a **second line of defence**, and it is worth understanding why it exists. The automatic cleanup is careful but it is not omniscient: it can only remove text it recognises, meaning the exact strings this session cloaked or uncloaked. Anything outside that set is invisible to it — a secret from a session you closed yesterday, text you altered after pasting it somewhere, a fragment you copied by selecting half a line, or content that reached the history by a route the app never observed.
+
+**Clear All!** does not try to recognise anything. It removes everything, so nothing sensitive is left behind whether CloakClip was tracking it or not. Use it whenever you would rather not have to think about which of your secrets the app happened to see — that is the whole point of it being there.
+
+**File > Exit and Clear All!** (Ctrl+Shift+Q) does the same in one step, without asking. Dismissing the dialog with Escape cancels the exit, so a mistaken click on the window's X costs nothing.
+
+The one thing neither option can reach is a secret you already pasted somewhere else. Clearing the clipboard does not un-send a message.
 
 ## How your secrets are protected
 
@@ -62,7 +72,7 @@ Windows keeps a history of everything copied (Win+V) and can sync it to the clou
 - **Re-copying a secret by hand is caught.** If you copy a tracked text again yourself — selecting it on screen, or re-copying it after pasting — that ordinary copy has no secret marking, so Windows records it. CloakClip watches for its session secrets reappearing on the clipboard, re-protects them, and deletes the recorded entries from Win+V history.
 - **Closing the app cleans up**: a copied secret is cleared from the clipboard, and every session secret that reached Win+V history is deleted from it. Cloaked text is left alone, since it is encrypted and you may still want to paste it.
 
-The guard can only match exact text from the current session — a secret edited outside CloakClip, or one from a previous run, is not recognized. For those, use **Clear Clipboard & History**, or close with **Clear All!**.
+All of that rests on matching exact text from the current session, so a secret edited outside CloakClip, or one from a previous run, is not recognised. You do not have to rely on it: **Clear Clipboard & History** on the Clipboard tab, and **Clear All!** when closing, both wipe the clipboard and its history wholesale — see [Closing the app](#closing-the-app).
 
 ## Why cloaking the same text twice gives different results
 
