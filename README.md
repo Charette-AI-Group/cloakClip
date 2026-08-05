@@ -58,7 +58,7 @@ That second option is deliberately a **second line of defence**, and it is worth
 
 **Clear All!** does not try to recognise anything. It removes everything, so nothing sensitive is left behind whether CloakClip was tracking it or not. Use it whenever you would rather not have to think about which of your secrets the app happened to see — that is the whole point of it being there.
 
-**File > Exit and Clear All!** (Ctrl+Shift+Q) does the same in one step, without asking. Dismissing the dialog with Escape cancels the exit, so a mistaken click on the window's X costs nothing.
+**File > Exit and Clear All!** (Ctrl+Shift+Q) does the same in one step, without asking. **Cancel** — or Escape, or the dialog's own close button — keeps the app open, so a mistaken click on the window's X costs nothing.
 
 The one thing neither option can reach is a secret you already pasted somewhere else. Clearing the clipboard does not un-send a message.
 

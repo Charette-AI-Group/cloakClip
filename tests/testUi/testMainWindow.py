@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QGuiApplication
+from PySide6.QtTest import QTest
 
 from cloakClip import appConfig
 from cloakClip.services import clipboardService, passwordHistoryService, themeService
@@ -256,13 +257,37 @@ def testExitAndClearAllDoesNotAskAgain(window, monkeypatch) -> None:
     assert not asked, "the user already said how they wanted to exit"
 
 
-def testCloseDialogOffersBothChoices(window) -> None:
+def testCloseDialogOffersBothChoicesAndCancel(window) -> None:
     box = window.buildCloseDialog()
 
-    labels = [button.text() for button in box.buttons()]
-    assert labels == ["OK", "OK - Clear All!"]
+    labels = {button.text() for button in box.buttons()}
+    assert labels == {"OK", "OK - Clear All!", "Cancel"}
     assert box.defaultButton() is window.closeOkButton
     box.deleteLater()
+
+
+def testEscapeOnTheCloseDialogCancels(window, qtbot) -> None:
+    # Regression: with no RejectRole button, QMessageBox assigns no escape
+    # button, so Escape and the dialog's own X silently did nothing.
+    box = window.buildCloseDialog()
+    qtbot.addWidget(box)
+    assert box.escapeButton() is window.closeCancelButton
+
+    box.show()
+    qtbot.waitExposed(box)
+    QTest.keyClick(box, Qt.Key.Key_Escape)
+
+    assert box.clickedButton() is window.closeCancelButton
+    assert window.closeActionFor(box.clickedButton()) is None
+
+
+def testCloseChoiceMapping(window) -> None:
+    window.buildCloseDialog().deleteLater()
+
+    assert window.closeActionFor(window.closeOkButton) == "close"
+    assert window.closeActionFor(window.closeClearButton) == "clearAndClose"
+    assert window.closeActionFor(window.closeCancelButton) is None
+    assert window.closeActionFor(None) is None
 
 
 def testCloseDialogClearAllPurgesHistory(window, qtbot, setClipboard, monkeypatch,

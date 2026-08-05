@@ -327,30 +327,41 @@ class MainWindow(QMainWindow):
         box.setIcon(QMessageBox.Icon.Question)
         box.setText(f"Close {appConfig.appName}?")
         box.setInformativeText(
-            "<b>OK</b> clears an uncloaked secret from the clipboard, as usual."
+            "<b>OK</b> clears an uncloaked secret from the clipboard and removes "
+            "this session's secrets from Windows clipboard history."
             "<br><br><b>OK - Clear All!</b> also empties the clipboard entirely and "
-            "purges Windows clipboard history, so nothing from this session is left "
-            "behind — including text that reached the history before CloakClip saw it."
+            "purges the whole clipboard history, so nothing is left behind whether "
+            "CloakClip was tracking it or not."
         )
         self.closeOkButton = box.addButton("OK", QMessageBox.ButtonRole.AcceptRole)
         self.closeClearButton = box.addButton(
             "OK - Clear All!", QMessageBox.ButtonRole.DestructiveRole
         )
+        self.closeCancelButton = box.addButton(
+            "Cancel", QMessageBox.ButtonRole.RejectRole
+        )
         box.setDefaultButton(self.closeOkButton)
+        # Set explicitly: QMessageBox only picks an escape button by itself
+        # when one carries RejectRole, so without this Escape and the dialog's
+        # own X did nothing at all.
+        box.setEscapeButton(self.closeCancelButton)
         return box
+
+    def closeActionFor(self, clicked: object) -> str | None:
+        """Map the clicked button to 'close', 'clearAndClose', or None."""
+        if clicked is self.closeClearButton:
+            return "clearAndClose"
+        if clicked is self.closeOkButton:
+            return "close"
+        # Cancel, Escape, or the dialog's X: do not exit at all, so a mistaken
+        # click on the window's X costs nothing.
+        return None
 
     def askCloseAction(self) -> str | None:
         """'close', 'clearAndClose', or None to stay open."""
         box = self.buildCloseDialog()
         box.exec()
-        clicked = box.clickedButton()
-        if clicked is self.closeClearButton:
-            return "clearAndClose"
-        if clicked is self.closeOkButton:
-            return "close"
-        # Escape or the dialog's own close button: do not exit at all, so a
-        # mistaken click on the window's X costs nothing.
-        return None
+        return self.closeActionFor(box.clickedButton())
 
     def onExitAndClearAll(self) -> None:
         self.clearClipboardAndHistory()
