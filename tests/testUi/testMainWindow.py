@@ -10,6 +10,7 @@ from PySide6.QtTest import QTest
 from cloakClip import appConfig
 from cloakClip.services import clipboardService, passwordHistoryService, themeService
 from cloakClip.services.cryptoService import encryptText
+from cloakClip.services.platform.clipboardBackend import ClipboardBackend
 from cloakClip.ui.dialogs.passwordDialog import PasswordDialog
 from cloakClip.ui.mainWindow import MainWindow
 
@@ -218,6 +219,35 @@ def testRecopiedSecretIsReprotectedAndPurged(window, qtbot, setClipboard, purgeC
     assert window.lastWriteWasSecret
     qtbot.waitUntil(lambda: bool(purgeCalls), timeout=5000)
     assert "sensitive" in purgeCalls[-1]
+
+
+def testGuardDoesNotRewriteWhenMarkingIsUnavailable(window, monkeypatch) -> None:
+    """The guard reacts to its own re-write, so it needs a way to settle.
+
+    Marking is that way: once the text is marked the guard returns early. A
+    backend that cannot mark never reaches that state, and the guard used to
+    answer its own write with another one until the stack ran out. The write
+    count is capped here so a regression fails the assertion instead of
+    recursing until pytest chokes on the traceback.
+    """
+    monkeypatch.setattr(clipboardService, "backend", ClipboardBackend())
+    writes: list[str] = []
+    realWriteText = clipboardService.writeText
+
+    def countedWriteText(text: str, secret: bool = False) -> bool:
+        writes.append(text)
+        if len(writes) > 20:
+            return True
+        return realWriteText(text, secret=secret)
+
+    monkeypatch.setattr(clipboardService, "writeText", countedWriteText)
+    window.sessionSecrets.add("sensitive")
+
+    clipboardService.writeText("sensitive", secret=True)
+
+    assert writes == ["sensitive"], (
+        f"the guard answered its own clipboard write {len(writes) - 1} more time(s)"
+    )
 
 
 def testCloseSweepsSessionSecretsFromHistory(window, qtbot, setClipboard, purgeCalls) -> None:
