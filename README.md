@@ -2,6 +2,8 @@
 
 Encrypt ("cloak") and decrypt ("uncloak") text with a shared password.
 
+**[cloakClip website and user manual](https://charette-ai-group.github.io/cloakClip/)** — the full manual lives in [`docs/`](docs/) and is published from there.
+
 ## Why cloak text
 
 A cloaked message is just a line of ordinary characters, so it travels anywhere plain text goes — no attachments, no plugins, nothing for the other end to install. That makes it useful wherever a message will outlive the moment you send it: chats and DMs that your employer or the platform retains, emails that sit on servers and get forwarded and backed up, tickets and shared documents that more people can read than you intended. Sending a colleague a Wi-Fi password, an API key, or a licence key is the classic case.
