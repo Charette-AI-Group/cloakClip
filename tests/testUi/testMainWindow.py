@@ -307,6 +307,10 @@ def testEscapeOnTheCloseDialogCancels(window, qtbot) -> None:
     qtbot.waitExposed(box)
     QTest.keyClick(box, Qt.Key.Key_Escape)
 
+    # Windows fires the escape button outright, but macOS animates the click,
+    # so the button lands roughly 100ms after the key rather than during it.
+    # Waiting covers both; on Windows the condition already holds.
+    qtbot.waitUntil(lambda: box.clickedButton() is not None, timeout=5000)
     assert box.clickedButton() is window.closeCancelButton
     assert window.closeActionFor(box.clickedButton()) is None
 
