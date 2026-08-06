@@ -15,6 +15,16 @@ class FullWidthTabBar(QTabBar):
             size.setWidth(tabWidget.width() // self.count())
         return size
 
+    def minimumTabSizeHint(self, index: int) -> QSize:
+        # The stretched tabSizeHint above is derived from the parent's current
+        # width, so letting it drive the *minimum* too makes the window's
+        # minimum width track its actual width. On any style that adds frame
+        # padding — macOS adds 6px, Windows adds none — the minimum then always
+        # lands just above the current width and the window grows without
+        # bound. Keeping the minimum at the natural label width breaks that
+        # loop; the tabs still stretch, since only sizeHint governs that.
+        return super().tabSizeHint(index)
+
 
 class FullWidthTabWidget(QTabWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
