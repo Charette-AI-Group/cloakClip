@@ -277,6 +277,14 @@ class MainWindow(QMainWindow):
         # the user selecting the shown text, or re-copying it after pasting.
         # Such a copy is unmarked, so Win+V records it. Re-write it marked and
         # sweep the recorded copy back out of history.
+        #
+        # This runs on every clipboard change, including the one the re-write
+        # below causes. What stops it recurring is the marking taking effect,
+        # so a platform that cannot mark would re-write its own write without
+        # end. There is nothing to protect or purge there either, so stop
+        # before starting rather than relying on the marking check below.
+        if not clipboardService.backend.supportsSecretMarking:
+            return
         text = clipboardService.readText()
         if not text or text not in self.sessionSecrets:
             return
