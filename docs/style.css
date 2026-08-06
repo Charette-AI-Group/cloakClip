@@ -4,6 +4,10 @@
   --accent: #4f46e5;
   --accent-strong: #4338ca;
   --accent-soft: rgba(99, 102, 241, 0.10);
+  /* Dark green, kept dark enough in both themes that white text stays
+     comfortably above the 4.5:1 contrast minimum. */
+  --donate: #15803d;
+  --donate-strong: #166534;
   --bg: #ffffff;
   --bg-alt: #f7f7fb;
   --bg-code: #f3f4f8;
@@ -20,6 +24,8 @@
     --accent: #8b8cf6;
     --accent-strong: #a5a6f9;
     --accent-soft: rgba(139, 140, 246, 0.14);
+    --donate: #15803d;
+    --donate-strong: #1a9e4b;
     --bg: #14151c;
     --bg-alt: #1a1c25;
     --bg-code: #1f2130;
@@ -95,6 +101,13 @@ img { max-width: 100%; height: auto; }
   .navLinks a:not(.btnSmall) { display: none; }
 }
 
+/* Two buttons plus the brand do not fit a phone at full length, and the
+   label would wrap to two lines inside the button. */
+@media (max-width: 520px) {
+  .wideOnly { display: none; }
+  .navLinks { gap: 10px; }
+}
+
 /* -------------------------------------------------------------- hero --- */
 
 .hero { padding: 72px 0 56px; border-bottom: 1px solid var(--border); }
@@ -135,8 +148,11 @@ img { max-width: 100%; height: auto; }
   color: #fff !important;
   font-weight: 600;
   font-size: .88rem;
+  white-space: nowrap;
 }
 .btnSmall:hover { background: var(--accent-strong); text-decoration: none; }
+.btnDonate { background: var(--donate); }
+.btnDonate:hover { background: var(--donate-strong); }
 
 .fineprint { color: var(--text-muted); font-size: .875rem; margin-top: 1rem; }
 
