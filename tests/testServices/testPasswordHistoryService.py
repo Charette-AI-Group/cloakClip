@@ -65,23 +65,40 @@ def testHistoryIsCappedAtTen(tmp_path) -> None:
     assert "password2" not in passwords
 
 
+@needsPasswordStore
 def testEmptyPasswordIsNotStored(tmp_path) -> None:
     filePath = historyFile(tmp_path)
+    passwordHistoryService.rememberPassword("real!", filePath)
+
     passwordHistoryService.rememberPassword("", filePath)
 
-    assert passwordHistoryService.loadPasswords(filePath) == []
+    # Checked against a surviving password rather than an empty history: an
+    # empty result is also what a store that cannot write anything returns,
+    # so it would not tell the empty password apart from a broken store.
+    assert passwordHistoryService.loadPasswords(filePath) == ["real!"]
 
 
+@needsPasswordStore
 def testCorruptFileIsTreatedAsEmpty(tmp_path) -> None:
     filePath = historyFile(tmp_path)
+    # Read the history back first. An empty result is what a store that reads
+    # nothing at all returns too, so without this the assertion below would
+    # hold whether the corruption was salvaged or never even reached.
+    passwordHistoryService.rememberPassword("readable!", filePath)
+    assert passwordHistoryService.loadPasswords(filePath) == ["readable!"]
+
     filePath.write_bytes(b"not a DPAPI blob at all")
 
     assert passwordHistoryService.loadPasswords(filePath) == []
 
 
+@needsPasswordStore
 def testClearPasswordsRemovesFile(tmp_path) -> None:
     filePath = historyFile(tmp_path)
     passwordHistoryService.rememberPassword("soon gone", filePath)
+    # Without this, a store that never wrote the file would satisfy every
+    # assertion below by having nothing to remove.
+    assert filePath.exists()
 
     passwordHistoryService.clearPasswords(filePath)
 
