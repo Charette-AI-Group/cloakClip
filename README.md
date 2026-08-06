@@ -110,7 +110,7 @@ The scheme is AES-256-CBC with the key derived as SHA-256 of the password, a ran
 
 ## Standalone executable
 
-Every push builds both platforms on GitHub Actions — grab `CloakClip.exe` or `CloakClip-macos.zip` from the run's **Artifacts**. Pushing a version tag (`v0.8.0`) also publishes a Release with both attached.
+Every push builds both platforms on GitHub Actions — grab `CloakClip.exe` or `CloakClip-macos.zip` from the run's **Artifacts**. Pushing a version tag (`v1.0.0`) also publishes a Release with both attached.
 
 To build locally instead:
 

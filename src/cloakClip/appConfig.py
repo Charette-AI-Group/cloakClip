@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 appName = "CloakClip"
-appVersion = "0.8.0"
+appVersion = "1.0.0"
 organizationName = "Charette-AI-Group"
 
 # Help > About contents

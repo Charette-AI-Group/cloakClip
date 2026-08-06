@@ -430,7 +430,7 @@ def testAboutTextContents(window) -> None:
     aboutText = window.buildAboutText()
 
     assert "CloakClip" in aboutText
-    assert "Version 0.8.0" in aboutText
+    assert f"Version {appConfig.appVersion}" in aboutText
     assert "Editor: Francois Charette, PhD" in aboutText
     assert "AI Agent: Claude - Fable 5" in aboutText
     assert "Charette AI Group, LLC" in aboutText

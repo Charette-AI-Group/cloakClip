@@ -3,7 +3,7 @@
 # Download the results from the run's "Artifacts" section on GitHub.
 #
 # Pushing a version tag (v*) additionally publishes a GitHub Release with
-# both binaries attached, e.g.: git tag -a v0.8.0 -m "..." && git push origin v0.8.0
+# both binaries attached, e.g.: git tag -a v1.0.0 -m "..." && git push origin v1.0.0
 
 name: build
 
