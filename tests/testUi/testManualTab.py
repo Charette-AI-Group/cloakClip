@@ -5,6 +5,7 @@ from __future__ import annotations
 from cloakClip.services import clipboardService, passwordHistoryService
 from cloakClip.services.cryptoService import decryptText, encryptText
 from cloakClip.ui.dialogs.passwordDialog import PasswordDialog
+from platformSkips import needsPasswordStore
 
 
 def cloakFieldDecryptsTo(window, expected: str, password: str) -> bool:
@@ -89,6 +90,7 @@ def testWrongPasswordShowsHintAndClearsPlain(window, qtbot) -> None:
     assert "wrong password" not in passwordHistoryService.loadPasswords()
 
 
+@needsPasswordStore
 def testSuccessfulUncloakRemembersPassword(window, qtbot) -> None:
     window.usePassword("good-pw!")
 

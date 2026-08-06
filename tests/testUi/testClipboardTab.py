@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from cloakClip.services import clipboardService, passwordHistoryService
 from cloakClip.services.cryptoService import decryptText, encryptText
+from platformSkips import needsPasswordStore, needsSecretMarking
 
 
 def testCloakReplacesClipboard(window, qtbot, setClipboard) -> None:
@@ -22,6 +23,7 @@ def testCloakReplacesClipboard(window, qtbot, setClipboard) -> None:
     assert "cloaked" in window.statusBar().currentMessage()
 
 
+@needsSecretMarking
 def testUncloakReplacesClipboardMarkedSecret(window, qtbot, setClipboard) -> None:
     cloaked = encryptText("the original", "pw123")
     window.usePassword("pw123")
@@ -71,6 +73,7 @@ def testCloakDoesNotMarkSecret(window, qtbot, setClipboard) -> None:
     assert not window.lastWriteWasSecret
 
 
+@needsPasswordStore
 def testSuccessfulCloakRemembersPassword(window, qtbot, setClipboard) -> None:
     setClipboard("note")
     window.usePassword("brand-new-pw!")
@@ -111,6 +114,7 @@ def testEditingThePreviewUpdatesTheClipboard(window, qtbot, setClipboard) -> Non
     )
 
 
+@needsSecretMarking
 def testEditingAnUncloakedSecretStaysProtected(window, qtbot, setClipboard) -> None:
     setClipboard(encryptText("meet at six", "pw"))
     window.usePassword("pw")

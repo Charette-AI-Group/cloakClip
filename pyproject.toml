@@ -30,7 +30,8 @@ build = [
 cloak-clip = "cloakClip.main:main"
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+# tests/ is on the path for platformSkips, shared by both test folders.
+pythonpath = ["src", "tests"]
 testpaths = ["tests"]
 qt_api = "pyside6"
 python_files = ["test*.py"]
@@ -42,6 +43,11 @@ target-version = "py314"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
+
+[tool.ruff.lint.isort]
+# platformSkips lives in tests/, so group it with the app rather than with
+# the third-party packages it would otherwise be sorted among.
+known-first-party = ["cloakClip", "platformSkips"]
 
 [build-system]
 requires = ["hatchling"]

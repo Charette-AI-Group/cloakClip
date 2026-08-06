@@ -13,6 +13,7 @@ from cloakClip.services.cryptoService import encryptText
 from cloakClip.services.platform.clipboardBackend import ClipboardBackend
 from cloakClip.ui.dialogs.passwordDialog import PasswordDialog
 from cloakClip.ui.mainWindow import MainWindow
+from platformSkips import needsPasswordStore, needsSecretMarking
 
 
 def testMainWindowOpens(window) -> None:
@@ -144,6 +145,7 @@ def testPasswordMenuEmptyState(window) -> None:
     assert not clearAction.isEnabled()
 
 
+@needsPasswordStore
 def testPasswordMenuListsMaskedHistory(window) -> None:
     passwordHistoryService.rememberPassword("older-password!")
     passwordHistoryService.rememberPassword("hunter2!")
@@ -161,6 +163,7 @@ def testPasswordMenuListsMaskedHistory(window) -> None:
     assert all("hunter2!" not in text and "older-password!" not in text for text in itemTexts)
 
 
+@needsPasswordStore
 def testPickingMenuEntrySelectsPassword(window) -> None:
     passwordHistoryService.rememberPassword("older-password!")
     passwordHistoryService.rememberPassword("hunter2!")
@@ -173,6 +176,7 @@ def testPickingMenuEntrySelectsPassword(window) -> None:
     assert window.passwordLabel.text() == "Password: o...!"
 
 
+@needsPasswordStore
 def testLastPasswordUsedEntrySelectsMostRecent(window) -> None:
     passwordHistoryService.rememberPassword("older-password!")
     passwordHistoryService.rememberPassword("hunter2!")
@@ -203,6 +207,7 @@ def testClearPasswordHistory(window) -> None:
     assert window.passwordLabel.text() == "No password selected"
 
 
+@needsSecretMarking
 def testRecopiedSecretIsReprotectedAndPurged(window, qtbot, setClipboard, purgeCalls) -> None:
     setClipboard(encryptText("sensitive", "pw"))
     window.usePassword("pw")

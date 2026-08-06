@@ -5,12 +5,14 @@ from __future__ import annotations
 from pathlib import Path
 
 from cloakClip.services import passwordHistoryService
+from platformSkips import needsPasswordStore
 
 
 def historyFile(tmp_path: Path) -> Path:
     return tmp_path / "passwordHistory.bin"
 
 
+@needsPasswordStore
 def testProtectUnprotectRoundTrip() -> None:
     secret = b"some bytes worth protecting"
     protected = passwordHistoryService.protect(secret)
@@ -23,6 +25,7 @@ def testLoadWithoutFileIsEmpty(tmp_path) -> None:
     assert passwordHistoryService.loadPasswords(historyFile(tmp_path)) == []
 
 
+@needsPasswordStore
 def testRememberAndLoad(tmp_path) -> None:
     filePath = historyFile(tmp_path)
     passwordHistoryService.rememberPassword("first!", filePath)
@@ -31,6 +34,7 @@ def testRememberAndLoad(tmp_path) -> None:
     assert passwordHistoryService.loadPasswords(filePath) == ["second!", "first!"]
 
 
+@needsPasswordStore
 def testFileOnDiskDoesNotContainPlaintext(tmp_path) -> None:
     filePath = historyFile(tmp_path)
     passwordHistoryService.rememberPassword("VerySecretPassword123", filePath)
@@ -39,6 +43,7 @@ def testFileOnDiskDoesNotContainPlaintext(tmp_path) -> None:
     assert b"VerySecretPassword123" not in rawBytes
 
 
+@needsPasswordStore
 def testReuseMovesPasswordToFront(tmp_path) -> None:
     filePath = historyFile(tmp_path)
     for password in ("one", "two", "three"):
@@ -48,6 +53,7 @@ def testReuseMovesPasswordToFront(tmp_path) -> None:
     assert passwordHistoryService.loadPasswords(filePath) == ["one", "three", "two"]
 
 
+@needsPasswordStore
 def testHistoryIsCappedAtTen(tmp_path) -> None:
     filePath = historyFile(tmp_path)
     for index in range(13):
