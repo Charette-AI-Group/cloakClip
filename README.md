@@ -84,6 +84,26 @@ Windows is the fully supported platform. The app builds and runs on macOS, but t
 
 A macOS port means adding `services/platform/macClipboard.py` and a Keychain-backed password store — nothing above that layer changes. Be aware that macOS has no built-in clipboard history to purge (so that exposure does not exist), that the nearest equivalent to secret marking is the `org.nspasteboard.ConcealedType` convention which clipboard managers *choose* to honour, and that Universal Clipboard syncing is a new exposure with no Windows counterpart.
 
+### What macOS does and does not do today
+
+Verified by running it, rather than inferred from the code:
+
+| Works | Absent |
+|---|---|
+| Cloaking, uncloaking, both tabs | Secret marking — `secretMarking=False` |
+| **Help > Theme**, light and dark | Clipboard history purging — none exists to purge |
+| Window position and size memory | Password history — DPAPI is Windows-only, so nothing is remembered between runs |
+
+`cloak-clip --selftest` prints exactly which of these the running build has.
+
+Four defects surfaced while getting there, all the same shape: **code whose correctness quietly depended on a Windows-only capability**. Worth knowing about if you extend this, because none of them failed loudly.
+
+- The window grew wider on every layout pass until it ran off-screen. macOS frame padding fed a loop that Windows' zero padding hid.
+- Uncloaking recursed without end. The guard that re-protects a re-copied secret reacts to its own clipboard write, and only the *marking* stopped it repeating — so a platform that cannot mark answered itself forever.
+- Two tests asserted Windows-only behaviour: sizes a `.png` cannot hold, and a button click that macOS animates rather than firing outright.
+
+One known issue remains: the app segfaults *after* it exits, during interpreter teardown — see [issue #7](https://github.com/Charette-AI-Group/cloakClip/issues/7). Clipboard cleanup and the secret sweep both run before that point, so nothing is left unprotected; the cost is a crash dialog and a wrong exit status.
+
 ## Compatibility
 
 The scheme is AES-256-CBC with the key derived as SHA-256 of the password, a random 16-byte IV prepended to the ciphertext, and the whole payload Base64-encoded. Any tool implementing the same scheme can read CloakClip's output and vice versa. Note that the key derivation is a single unsalted SHA-256 — no PBKDF2 or Argon2 stretching — so a short password is vulnerable to offline guessing. Use a long one.
@@ -122,12 +142,25 @@ The demo GIFs above are recorded from the running app, so they cannot drift from
 
 ## One-time setup
 
+Needs **Python 3.14 or newer** — the interpreter that ships with a machine is often older, so check `python --version` before the venv rather than after the install fails.
+
 ```powershell
 cd W:\projects\26cloakClip
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -e ".[dev,build]"
 ```
+
+On macOS or Linux:
+
+```bash
+cd ~/projects/cloakClip
+python3.14 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev,build]"
+```
+
+The Windows-only `winrt-*` dependencies carry `sys_platform` markers, so they skip themselves elsewhere and the install succeeds on any platform.
 
 ## Daily workflow
 
@@ -151,6 +184,12 @@ Or just double-click **`runApp.cmd`** in the project folder (needs the one-time 
 pytest
 ruff check src tests
 ```
+
+Expect **122 passed** on Windows and **102 passed, 20 skipped** on macOS. Nothing should fail on either.
+
+The skips are not failures being hidden. `tests/platformSkips.py` gates the tests that need a capability the host lacks — the DPAPI password store, and clipboard secret marking — on the capability itself rather than on `sys.platform`. Implementing `services/platform/macClipboard.py` or a Keychain store makes the relevant tests start running on their own, with no platform check left behind to notice and remove. Every skip names the capability it wants, so `pytest -rs` says why.
+
+Run the suite as CI does, with no `QT_QPA_PLATFORM` override. Forcing `offscreen` makes four theme tests fail spuriously, because that platform reports `ColorScheme.Unknown` and never applies the palette.
 
 ## Structure
 

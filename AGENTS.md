@@ -22,6 +22,17 @@ The interesting part is not the crypto — it is keeping a *decrypted* secret fr
 
 Everything below is the remaining work. It was scoped from Windows, so treat macOS specifics as *leads to verify*, not facts.
 
+### Already settled on macOS — do not re-derive
+
+A session on real hardware established the following. The three tasks below are still open; this is the ground you start from.
+
+- **The app runs, and the suite runs.** `pytest` on macOS is 102 passed, 20 skipped, 0 failed, in about 12 seconds. Before that work it never finished at all.
+- **Theme switching works** — `applyTheme` yields `ColorScheme.Dark` with palette `#323232` and `ColorScheme.Light` with `#ececec`. No macOS work needed there.
+- **Run the suite with no `QT_QPA_PLATFORM` override.** Under `offscreen` the colour scheme reports `Unknown` and the palette never changes, so four theme tests fail for reasons that have nothing to do with the code.
+- **Known open defect:** a SIGSEGV during interpreter teardown *after* the app exits, in shiboken's destruction of a `QMimeData` wrapper. Not reproducible on demand — seven attempts are recorded in issue #7 along with the dead ends, so read it before spending time there.
+
+Four defects were found and fixed, every one the same shape: **logic whose correctness silently depended on a Windows-only capability, failing quietly rather than loudly.** A layout loop that only Windows' zero frame padding concealed; a clipboard guard that answered its own write forever because only *marking* could stop it; and two tests asserting Windows-only behaviour. When you add the macOS backend, assume this pattern is still lurking — the absence of a capability tends to turn a terminating condition into a non-terminating one.
+
 ### Where the platform line is drawn
 
 | File | Role |
@@ -64,6 +75,10 @@ So: write throwaway probe scripts, run them, read the output. Screenshot the GUI
 ### Test rules you must respect
 
 `tests/testUi/conftest.py` has autouse fixtures that keep the suite away from real user state: the settings file, the password history, the forced colour scheme, the modal password dialog, and `deleteHistoryTexts`. **Add an equivalent isolation fixture before touching the Keychain** — a test run must never read or write the developer's real Keychain, and a modal dialog must never be able to open and hang the suite.
+
+`tests/platformSkips.py` holds `needsPasswordStore` and `needsSecretMarking`. They gate on the **capability** (`passwordHistoryService.dpapiAvailable`, `clipboardService.backend.supportsSecretMarking`), never on `sys.platform`. Implementing a backend therefore un-skips the matching tests by itself — which also means **they become your acceptance criteria**: land `macClipboard.py` and the four secret-marking tests start running and must pass. Keep any new skip keyed the same way.
+
+A skipped test must still be worth running once it is un-skipped. Three password-history tests used to pass on macOS while proving nothing — with no store, "the file is gone" holds because none was ever written. Each now establishes that the store works before asserting what it claims. If you add a test that a missing capability would satisfy trivially, give it that kind of precondition.
 
 The CI test job runs on `windows-latest`, so macOS work must not break the Windows suite.
 
