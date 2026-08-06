@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QDialog, QLineEdit
 
 from cloakClip.services import passwordHistoryService
 from cloakClip.ui.dialogs.passwordDialog import PasswordDialog
+from platformSkips import needsPasswordStore
 
 
 def testPasswordIsMaskedByDefault(qtbot) -> None:
@@ -52,6 +53,7 @@ def testNoLastPasswordButtonWithoutHistory(qtbot) -> None:
     assert dialog.lastPasswordButton is None
 
 
+@needsPasswordStore
 def testUseLastPasswordButtonAcceptsWithLastPassword(qtbot) -> None:
     passwordHistoryService.rememberPassword("older-password!")
     passwordHistoryService.rememberPassword("hunter2!")
@@ -69,6 +71,7 @@ def testUseLastPasswordButtonAcceptsWithLastPassword(qtbot) -> None:
     assert dialog.password() == "hunter2!"
 
 
+@needsPasswordStore
 def testUseLastPasswordSitsLeftOfOkOnTheSameRow(qtbot) -> None:
     passwordHistoryService.rememberPassword("hunter2!")
     dialog = PasswordDialog()

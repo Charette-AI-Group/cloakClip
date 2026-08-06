@@ -7,6 +7,7 @@ Win+V history of whoever runs the suite.
 from __future__ import annotations
 
 from cloakClip.services import clipboardService
+from platformSkips import needsSecretMarking
 
 secretMimeTypes = list(clipboardService.backend.secretMimeData())
 
@@ -54,6 +55,7 @@ def testHistoryEnabledIsBoolean(qapp) -> None:
     assert isinstance(clipboardService.isHistoryEnabled(), bool)
 
 
+@needsSecretMarking
 def testCurrentTextMarkedSecretDetection(qapp, qtbot) -> None:
     writeWithRetry(qtbot, "plain write")
     assert not clipboardService.currentTextIsMarkedSecret()
