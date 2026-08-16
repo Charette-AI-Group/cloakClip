@@ -3,6 +3,8 @@ name = "cloak-clip"
 version = "1.0.1"
 description = "Encrypt and decrypt clipboard text with a password"
 requires-python = ">=3.14"
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = [
     "PySide6>=6.6,<7",
     "cryptography>=42,<47",
