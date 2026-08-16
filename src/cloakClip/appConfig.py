@@ -40,6 +40,8 @@ passwordHistoryFile = appDataDir / "passwordHistory.bin"
 settingsFile = appDataDir / "settings.ini"
 maxPasswordHistory = 10
 windowTitle = appName
+# The same PayPal button the website and the other apps use.
+donateUrl = "https://www.paypal.com/donate/?hosted_button_id=FEM4WLD7LHY36"
 # Indigo from the app icon; legible on both light and dark Windows themes.
 accentColor = "#6366F1"
 defaultWindowWidth = 620

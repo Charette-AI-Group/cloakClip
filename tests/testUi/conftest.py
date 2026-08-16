@@ -80,6 +80,12 @@ def historyCalls(monkeypatch) -> list[bool]:
 
 
 @pytest.fixture(autouse=True)
+def noRealAboutDialog(monkeypatch):
+    """The About box is modal too; tests use buildAboutDialog instead."""
+    monkeypatch.setattr(MainWindow, "onHelpAbout", lambda self: None)
+
+
+@pytest.fixture(autouse=True)
 def noRealCloseDialog(monkeypatch):
     """Never open the modal close dialog — it would block the suite forever.
 

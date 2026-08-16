@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 from PySide6.QtCore import QSize, Qt
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtTest import QTest
 
 from cloakClip import appConfig
@@ -424,6 +424,29 @@ def testStrandedWindowIsBroughtBackOnScreen(window, qtbot) -> None:
         screen.availableGeometry().intersects(frame)
         for screen in QGuiApplication.screens()
     )
+
+
+def testAboutDialogOffersDonate(window) -> None:
+    box = window.buildAboutDialog()
+
+    labels = [button.text().replace("&", "") for button in box.buttons()]
+    assert "Donate" in labels
+    assert box.defaultButton() is window.aboutCloseButton, (
+        "Close should be the default so Enter does not open a payment page"
+    )
+    box.deleteLater()
+
+
+def testDonateOpensThePaypalPage(window, monkeypatch) -> None:
+    opened: list[str] = []
+    monkeypatch.setattr(
+        QDesktopServices, "openUrl", staticmethod(lambda url: opened.append(url.toString()))
+    )
+
+    window.openDonatePage()
+
+    assert opened == [appConfig.donateUrl]
+    assert appConfig.donateUrl.startswith("https://www.paypal.com/donate/")
 
 
 def testAboutTextContents(window) -> None:

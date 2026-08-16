@@ -6,12 +6,13 @@ import datetime
 import threading
 from functools import partial
 
-from PySide6.QtCore import QEvent, QTimer
+from PySide6.QtCore import QEvent, QTimer, QUrl
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
     QCloseEvent,
     QColor,
+    QDesktopServices,
     QGuiApplication,
     QKeySequence,
     QPalette,
@@ -410,10 +411,27 @@ class MainWindow(QMainWindow):
             f"<p>&copy; {year} {appConfig.copyrightHolder}</p>"
         )
 
-    def onHelpAbout(self) -> None:
+    def buildAboutDialog(self) -> QMessageBox:
         aboutBox = QMessageBox(self)
         aboutBox.setWindowTitle(f"About {appConfig.appName}")
         aboutBox.setText(self.buildAboutText())
         # QMessageBox ignores resize/setMinimumWidth; widening its label works.
         aboutBox.setStyleSheet("QLabel { min-width: 420px; }")
+        self.aboutDonateButton = aboutBox.addButton(
+            "Donate", QMessageBox.ButtonRole.ActionRole
+        )
+        self.aboutCloseButton = aboutBox.addButton(QMessageBox.StandardButton.Close)
+        aboutBox.setDefaultButton(self.aboutCloseButton)
+        return aboutBox
+
+    def openDonatePage(self) -> None:
+        QDesktopServices.openUrl(QUrl(appConfig.donateUrl))
+
+    def onHelpAbout(self) -> None:
+        aboutBox = self.buildAboutDialog()
+        # Any QMessageBox button closes the dialog, so the choice is read back
+        # afterwards rather than wired to the click.
         aboutBox.exec()
+        if aboutBox.clickedButton() is self.aboutDonateButton:
+            self.openDonatePage()
+            self.statusMessage("Thank you — the donation page is opening in your browser.")
