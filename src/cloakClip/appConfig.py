@@ -42,6 +42,11 @@ maxPasswordHistory = 10
 windowTitle = appName
 # The same PayPal button the website and the other apps use.
 donateUrl = "https://www.paypal.com/donate/?hosted_button_id=FEM4WLD7LHY36"
+# Matching the donate button in the SAE Calculator, for a consistent look
+# across the apps. Dark text on yellow reads well in either theme.
+donateColor = "#f0b232"
+donateTextColor = "#1f1e1b"
+donatePressedColor = "#d9991f"
 # Indigo from the app icon; legible on both light and dark Windows themes.
 accentColor = "#6366F1"
 defaultWindowWidth = 620

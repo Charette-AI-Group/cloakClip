@@ -6,6 +6,7 @@ import pytest
 from PySide6.QtCore import QSize, Qt
 from PySide6.QtGui import QDesktopServices, QGuiApplication
 from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QDialog
 
 from cloakClip import appConfig
 from cloakClip.services import clipboardService, passwordHistoryService, themeService
@@ -426,15 +427,51 @@ def testStrandedWindowIsBroughtBackOnScreen(window, qtbot) -> None:
     )
 
 
-def testAboutDialogOffersDonate(window) -> None:
-    box = window.buildAboutDialog()
+def testAboutDialogOffersDonate(window, qtbot) -> None:
+    dialog = window.buildAboutDialog()
+    qtbot.addWidget(dialog)
 
-    labels = [button.text().replace("&", "") for button in box.buttons()]
-    assert "Donate" in labels
-    assert box.defaultButton() is window.aboutCloseButton, (
-        "Close should be the default so Enter does not open a payment page"
+    assert dialog.donateButton.text() == "Donate"
+    assert dialog.closeButton.isDefault(), (
+        "Close must be the default so Enter does not open a payment page"
     )
-    box.deleteLater()
+    assert not dialog.donateButton.autoDefault()
+    assert appConfig.donateColor in dialog.donateButton.styleSheet()
+
+
+def testDonateSitsLeftOfCloseOnTheSameRow(window, qtbot) -> None:
+    dialog = window.buildAboutDialog()
+    qtbot.addWidget(dialog)
+    dialog.show()
+    qtbot.waitExposed(dialog)
+
+    donate = dialog.donateButton.geometry()
+    close = dialog.closeButton.geometry()
+
+    assert abs(donate.center().y() - close.center().y()) <= 2, "same row"
+    assert donate.right() < close.left(), "Donate on the left, clear of Close"
+    # Left-aligned in the dialog, not merely left of Close.
+    assert donate.left() < dialog.width() // 3
+
+
+def testClickingDonateRecordsTheRequest(window, qtbot) -> None:
+    dialog = window.buildAboutDialog()
+    qtbot.addWidget(dialog)
+    assert not dialog.donateRequested
+
+    dialog.donateButton.click()
+
+    assert dialog.donateRequested
+    assert dialog.result() == QDialog.DialogCode.Accepted
+
+
+def testClosingDoesNotRequestDonation(window, qtbot) -> None:
+    dialog = window.buildAboutDialog()
+    qtbot.addWidget(dialog)
+
+    dialog.closeButton.click()
+
+    assert not dialog.donateRequested
 
 
 def testDonateOpensThePaypalPage(window, monkeypatch) -> None:

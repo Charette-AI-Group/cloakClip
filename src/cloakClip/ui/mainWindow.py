@@ -27,6 +27,7 @@ from cloakClip.services import (
     windowStateService,
 )
 from cloakClip.ui.clipboardTab import ClipboardTab
+from cloakClip.ui.dialogs.aboutDialog import AboutDialog
 from cloakClip.ui.dialogs.passwordDialog import PasswordDialog
 from cloakClip.ui.manualTab import ManualTab
 from cloakClip.ui.widgets.fullWidthTabWidget import FullWidthTabWidget
@@ -411,27 +412,15 @@ class MainWindow(QMainWindow):
             f"<p>&copy; {year} {appConfig.copyrightHolder}</p>"
         )
 
-    def buildAboutDialog(self) -> QMessageBox:
-        aboutBox = QMessageBox(self)
-        aboutBox.setWindowTitle(f"About {appConfig.appName}")
-        aboutBox.setText(self.buildAboutText())
-        # QMessageBox ignores resize/setMinimumWidth; widening its label works.
-        aboutBox.setStyleSheet("QLabel { min-width: 420px; }")
-        self.aboutDonateButton = aboutBox.addButton(
-            "Donate", QMessageBox.ButtonRole.ActionRole
-        )
-        self.aboutCloseButton = aboutBox.addButton(QMessageBox.StandardButton.Close)
-        aboutBox.setDefaultButton(self.aboutCloseButton)
-        return aboutBox
+    def buildAboutDialog(self) -> AboutDialog:
+        return AboutDialog(self.buildAboutText(), self)
 
     def openDonatePage(self) -> None:
         QDesktopServices.openUrl(QUrl(appConfig.donateUrl))
 
     def onHelpAbout(self) -> None:
-        aboutBox = self.buildAboutDialog()
-        # Any QMessageBox button closes the dialog, so the choice is read back
-        # afterwards rather than wired to the click.
-        aboutBox.exec()
-        if aboutBox.clickedButton() is self.aboutDonateButton:
+        dialog = self.buildAboutDialog()
+        dialog.exec()
+        if dialog.donateRequested:
             self.openDonatePage()
             self.statusMessage("Thank you — the donation page is opening in your browser.")
