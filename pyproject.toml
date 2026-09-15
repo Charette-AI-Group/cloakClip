@@ -1,6 +1,6 @@
 [project]
 name = "cloak-clip"
-version = "1.0.1"
+version = "1.0.2"
 description = "Encrypt and decrypt clipboard text with a password"
 requires-python = ">=3.14"
 license = "MIT"
