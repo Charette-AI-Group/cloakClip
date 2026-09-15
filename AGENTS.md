@@ -93,6 +93,8 @@ python tools/buildStandalone.py          # uses the committed cloakClip.spec
 
 `.github/workflows/build.yml` builds both platforms on every push and attaches both to a Release on `v*` tags.
 
+Windows also gets an Inno Setup installer (`tools/buildInstaller.py`, `installer/cloakClip.iss`). It packages a folder bundle that `cloakClip.spec` builds only when `CLOAKCLIP_ONEDIR=1` is set; without it the spec is the one-file build it always was, and `BUNDLE` wraps the same `exe` on macOS. Leave that flag Windows-only — the `.app` is already a folder, and the macOS download stays the zipped `.app`. Never change the `AppId` GUID in the `.iss`: it is what lets an upgrade replace an existing install.
+
 ### Definition of done
 
 1. `--selftest` on macOS reports `clipboardBackend=macos` and `secretMarking=True`.

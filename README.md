@@ -112,7 +112,12 @@ The scheme is AES-256-CBC with the key derived as SHA-256 of the password, a ran
 
 ## Standalone executable
 
-Every push builds both platforms on GitHub Actions — grab `CloakClip.exe` or `CloakClip-macos.zip` from the run's **Artifacts**. Pushing a version tag (`v1.0.0`) also publishes a Release with both attached.
+Every push builds both platforms on GitHub Actions — grab `CloakClip.exe`, `CloakClipSetup-<version>.exe` or `CloakClip-macos.zip` from the run's **Artifacts**. Pushing a version tag (`v1.0.0`) also publishes a Release with all of them attached, plus `CloakClip-checksums.txt` (SHA-256), since the downloads are unsigned.
+
+Windows gets two downloads of the same app:
+
+- **`CloakClipSetup-<version>.exe`** — the installer. Per-user, so no administrator rights; it adds a Start menu entry, an optional desktop shortcut, and an entry in *Add or Remove Programs*. Uninstalling removes the app but leaves your settings and remembered passwords in `%APPDATA%\CloakClip` — use **Password > Clear Password History** first if you want those gone too.
+- **`CloakClip.exe`** — the portable single file. Nothing to install; run it from anywhere, a USB stick included.
 
 To build locally instead:
 
@@ -121,6 +126,14 @@ To build locally instead:
 ```
 
 Or double-click **`buildStandalone.cmd`**. The result is **`dist\CloakClip.exe`** (about 50 MB, since Qt travels with it) — or `dist/CloakClip.app` on a Mac. Local and CI builds share `cloakClip.spec`, so they produce the same thing.
+
+For the installer, install [Inno Setup 6](https://jrsoftware.org/isinfo.php) once (`winget install JRSoftware.InnoSetup`), then run the following or double-click **`buildInstaller.cmd`**:
+
+```powershell
+.\.venv\Scripts\python.exe tools\buildInstaller.py
+```
+
+It builds a folder bundle (`dist\CloakClip\`, via `CLOAKCLIP_ONEDIR=1` and the same spec), self-tests it, and compiles **`dist\CloakClipSetup-<version>.exe`** with the version taken from `appConfig`. It leaves `dist\CloakClip.exe` alone, so running it after `buildStandalone.cmd` gives you both.
 
 To check a build is complete — the bundled icon and the Windows clipboard-history bindings both fail *quietly* if packaging drops them — run:
 

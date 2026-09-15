@@ -1,9 +1,10 @@
 # Builds the standalone app on every push (and on demand via the Actions tab).
-# Windows -> CloakClip.exe, macOS (Apple Silicon) -> CloakClip.app.
+# Windows -> CloakClip.exe plus CloakClipSetup-<version>.exe,
+# macOS (Apple Silicon) -> CloakClip.app.
 # Download the results from the run's "Artifacts" section on GitHub.
 #
 # Pushing a version tag (v*) additionally publishes a GitHub Release with
-# both binaries attached, e.g.: git tag -a v1.0.0 -m "..." && git push origin v1.0.0
+# all of them attached, e.g.: git tag -a v1.0.0 -m "..." && git push origin v1.0.0
 
 name: build
 
@@ -49,7 +50,9 @@ jobs:
         include:
           - os: windows-latest
             artifactName: cloakClip-windows
-            artifactPath: dist/CloakClip.exe
+            artifactPath: |
+              dist/CloakClip.exe
+              dist/CloakClipSetup-*.exe
           - os: macos-latest
             artifactName: cloakClip-macos-appleSilicon
             artifactPath: dist/CloakClip-macos.zip
@@ -98,6 +101,76 @@ jobs:
         if: runner.os == 'macOS'
         run: ditto -c -k --keepParent "dist/CloakClip.app" "dist/CloakClip-macos.zip"
 
+      # Windows gets the same app a second way. CloakClip.exe is the portable
+      # copy - run it from anywhere, a USB stick included, leave nothing
+      # behind - and the installer is for everyone else: a Start menu entry,
+      # an optional desktop shortcut, and a line in Add or Remove Programs so
+      # it can be taken off again without hunting for a file.
+      #
+      # The runner image already carries Inno Setup, but that is not a
+      # promise: images change, and a missing compiler should cost one
+      # choco install rather than a failed release.
+      - name: Ensure Inno Setup is available
+        if: runner.os == 'Windows'
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (Test-Path $iscc) {
+            Write-Output "Inno Setup is already here: $iscc"
+          }
+          else {
+            Write-Output "Inno Setup not on the image; installing it."
+            choco install innosetup --no-progress -y
+          }
+
+      # Builds the folder bundle the installer packages, self-tests it, then
+      # compiles it. dist/CloakClip.exe from the step above is left alone.
+      - name: Build the Windows installer
+        if: runner.os == 'Windows'
+        run: python tools/buildInstaller.py
+
+      # Proof that it is an installer and not merely a file of about the
+      # right size: install it silently into a temporary directory, run the
+      # installed copy's self-test (which fails if _internal did not come
+      # along), then let its own uninstaller take it away again. An installer
+      # that only reveals itself as broken on someone else's machine is
+      # exactly the failure --selftest exists to prevent for the bundle.
+      - name: Verify the installer installs, runs and uninstalls
+        if: runner.os == 'Windows'
+        run: |
+          $setup = Get-ChildItem dist\CloakClipSetup-*.exe | Select-Object -First 1
+          $target = Join-Path $env:RUNNER_TEMP "cloakClipInstallCheck"
+          Write-Output "Installing $($setup.Name) into $target"
+          Start-Process -FilePath $setup.FullName `
+            -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART","/DIR=$target" -Wait
+          if (-not (Test-Path "$target\CloakClip.exe")) {
+            Write-Output "::error::CloakClip.exe is not in $target after a silent install"
+            Get-ChildItem $target -ErrorAction SilentlyContinue | Select-Object -First 20
+            exit 1
+          }
+          $report = Join-Path $env:RUNNER_TEMP "installedSelftest.txt"
+          $proc = Start-Process -FilePath "$target\CloakClip.exe" `
+            -ArgumentList "--selftest",$report -Wait -PassThru
+          Get-Content $report
+          if ($proc.ExitCode -ne 0) {
+            Write-Output "::error::The installed copy failed its self-test"
+            exit $proc.ExitCode
+          }
+          $mb = [math]::Round((Get-ChildItem $target -Recurse | Measure-Object Length -Sum).Sum / 1MB)
+          Write-Output "Installed size: $mb MB"
+          # The uninstaller copies itself to a temp folder and relaunches from
+          # there, so -Wait returns before it has finished; poll instead.
+          $uninstaller = Get-ChildItem "$target\unins*.exe" | Select-Object -First 1
+          Start-Process -FilePath $uninstaller.FullName `
+            -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait
+          for ($i = 0; $i -lt 30 -and (Test-Path "$target\CloakClip.exe"); $i++) {
+            Start-Sleep -Seconds 1
+          }
+          if (Test-Path "$target\CloakClip.exe") {
+            Write-Output "::error::CloakClip.exe is still there after uninstalling"
+            exit 1
+          }
+          Write-Output "Installed, self-tested and uninstalled cleanly."
+
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:
@@ -125,10 +198,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${{ github.ref_name }}"
-          files=(
-            "artifacts/cloakClip-windows/CloakClip.exe"
-            "artifacts/cloakClip-macos-appleSilicon/CloakClip-macos.zip"
-          )
+          mv artifacts/cloakClip-windows/*.exe .
+          mv artifacts/cloakClip-macos-appleSilicon/CloakClip-macos.zip .
+          # Unsigned downloads: a checksum is the only way for someone to
+          # tell a real one from a tampered copy.
+          sha256sum CloakClip.exe CloakClipSetup-*.exe CloakClip-macos.zip > CloakClip-checksums.txt
+          cat CloakClip-checksums.txt
+          files=(CloakClip.exe CloakClipSetup-*.exe CloakClip-macos.zip CloakClip-checksums.txt)
           if gh release view "$tag" --repo "${{ github.repository }}" > /dev/null 2>&1; then
             gh release upload "$tag" "${files[@]}" --repo "${{ github.repository }}" --clobber
           else
