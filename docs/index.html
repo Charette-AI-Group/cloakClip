@@ -42,7 +42,7 @@
           <a class="btn btnPrimary" href="#download">Download free</a>
           <a class="btn btnGhost" href="#manual">Read the manual</a>
         </div>
-        <p class="fineprint">Version 1.0.1 &middot; Windows and macOS &middot; single file, no installer &middot;
+        <p class="fineprint">Version 1.0.2 &middot; Windows and macOS &middot; installer or portable file &middot;
           nothing is ever sent anywhere</p>
       </div>
       <div>
@@ -117,7 +117,8 @@
       <div class="manualGrid">
         <div>
           <ol class="steps">
-            <li>Download and run CloakClip. There is no installer &mdash; it is a single file.</li>
+            <li>Download and install CloakClip. On Windows you can instead run the portable single file,
+              with nothing to install.</li>
             <li>Pick a password from the <strong>Password</strong> menu (or press <kbd>Ctrl</kbd>+<kbd>P</kbd>).
               Choose something long, and agree it with the other person beforehand.</li>
             <li>Copy the text you want to protect, then click <strong>Cloak Clipboard</strong>.</li>
@@ -170,13 +171,22 @@
           <!-- 1 -->
           <section id="installing">
             <h2>1. Installing</h2>
-            <p>CloakClip is a single self-contained file. There is no installer, no runtime to add, and
-              nothing written outside your own user folder.</p>
+            <p>CloakClip is self-contained. There is no runtime to add, and nothing is written outside your
+              own user folder.</p>
             <h4>Windows</h4>
-            <p>Download <code>CloakClip.exe</code> and put it anywhere you like &mdash; your desktop, a
-              folder, a USB stick. Double-click to run it. The first time, Windows may show a SmartScreen
-              notice because the file is not code-signed: choose <strong>More info</strong>, then
-              <strong>Run anyway</strong>.</p>
+            <p>There are two downloads of the same app &mdash; pick whichever suits you:</p>
+            <ul>
+              <li><code>CloakClipSetup-<i>version</i>.exe</code> installs it properly: a Start menu entry, an
+                optional desktop shortcut, and an entry in <strong>Settings &gt; Apps</strong> to remove it
+                again. It installs for your account only, so no administrator rights are needed. To upgrade,
+                run the newer installer; it replaces the old version and keeps your passwords and
+                settings.</li>
+              <li><code>CloakClip.exe</code> is the portable version: a single file with nothing to install.
+                Put it anywhere you like &mdash; your desktop, a folder, a USB stick &mdash; and double-click
+                it.</li>
+            </ul>
+            <p>The first time, Windows may show a SmartScreen notice because neither file is code-signed:
+              choose <strong>More info</strong>, then <strong>Run anyway</strong>.</p>
             <h4>macOS</h4>
             <p>Download <code>CloakClip-macos.zip</code>, unzip it, and move <code>CloakClip.app</code> to
               your Applications folder. The first time, right-click the app and choose <strong>Open</strong>
@@ -442,7 +452,9 @@
 
             <h4>Windows says the app is unrecognised</h4>
             <p>The download is not code-signed. Choose <strong>More info</strong> then <strong>Run
-              anyway</strong>. You can verify what you downloaded against the published release on GitHub.</p>
+              anyway</strong>. To check that the file is genuine, compare its SHA-256 checksum with the one
+              listed in <code>CloakClip-checksums.txt</code> on the release page &mdash; in PowerShell,
+              <code>Get-FileHash</code> followed by the file name prints it.</p>
 
             <h4>The clipboard is busy</h4>
             <p>Another program was holding the clipboard at that moment. CloakClip retries automatically and
@@ -455,7 +467,8 @@
 
             <h4>I want to erase everything CloakClip stored</h4>
             <p>Use <strong>Password &gt; Clear Password History</strong>, then delete the folder
-              <code>%APPDATA%\CloakClip</code>. That is everything the app keeps.</p>
+              <code>%APPDATA%\CloakClip</code>. That is everything the app keeps. Uninstalling the app leaves
+              that folder in place on purpose, so a reinstall does not lose your settings.</p>
           </section>
 
         </div>
@@ -467,15 +480,16 @@
   <section class="band alt" id="download">
     <div class="wrap">
       <div class="bandHead">
-        <h2>Download CloakClip 1.0.1</h2>
+        <h2>Download CloakClip 1.0.2</h2>
         <p>Free, no account, no ads, no telemetry. Your text never leaves your machine.</p>
       </div>
 
       <div class="downloadGrid">
         <div class="downloadCard">
           <h3>Windows</h3>
-          <p>A single <code>CloakClip.exe</code>, about 50&nbsp;MB. No installer &mdash; put it anywhere and
-            run it.</p>
+          <p><code>CloakClipSetup-<i>version</i>.exe</code>, about 37&nbsp;MB, installs it with a Start menu
+            entry &mdash; no administrator rights needed. Or take <code>CloakClip.exe</code>, about
+            50&nbsp;MB, the portable single file: put it anywhere and run it.</p>
           <a class="btn btnPrimary" href="https://github.com/Charette-AI-Group/cloakClip/releases/latest">
             Download for Windows</a>
         </div>
@@ -519,7 +533,7 @@
   <!-- ---------------------------------------------------------- footer -->
   <footer class="siteFooter">
     <div class="wrap">
-      <div>&copy; 2026 Charette AI Group &middot; CloakClip 1.0.1</div>
+      <div>&copy; 2026 Charette AI Group &middot; CloakClip 1.0.2</div>
       <div>
         <a href="https://github.com/Charette-AI-Group/cloakClip">Source</a> &middot;
         <a href="https://github.com/Charette-AI-Group/cloakClip/releases/latest">Releases</a> &middot;
