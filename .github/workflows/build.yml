@@ -5,6 +5,10 @@
 #
 # Pushing a version tag (v*) additionally publishes a GitHub Release with
 # all of them attached, e.g.: git tag -a v1.0.0 -m "..." && git push origin v1.0.0
+#
+# The annotated tag's message becomes the release notes. git tag deletes
+# lines starting with "#" by default, so for Markdown headings in the notes
+# tag with --cleanup=whitespace -F notes.md instead of -m.
 
 name: build
 
@@ -188,6 +192,12 @@ jobs:
       contents: write
 
     steps:
+      # Only for the tag's own message, which becomes the release notes.
+      - name: Check out repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
       - name: Download build artifacts
         uses: actions/download-artifact@v8
         with:
@@ -205,8 +215,24 @@ jobs:
           sha256sum CloakClip.exe CloakClipSetup-*.exe CloakClip-macos.zip > CloakClip-checksums.txt
           cat CloakClip-checksums.txt
           files=(CloakClip.exe CloakClipSetup-*.exe CloakClip-macos.zip CloakClip-checksums.txt)
+
+          # An annotated tag carries what the person cutting the release
+          # actually wrote. --generate-notes lists merged pull requests, and
+          # when a release had none it produces a body holding one link and
+          # nothing else - which is what 1.0.1 and 1.0.2 first shipped with.
+          # The same approach as FRWB's and the SAE Calculator's release jobs.
+          notes=$(git tag -l --format='%(contents:body)' "$tag")
+          if [ -z "$(echo "$notes" | tr -d '[:space:]')" ]; then
+            notes=$(git tag -l --format='%(contents)' "$tag")
+          fi
+
           if gh release view "$tag" --repo "${{ github.repository }}" > /dev/null 2>&1; then
             gh release upload "$tag" "${files[@]}" --repo "${{ github.repository }}" --clobber
+          elif [ -n "$(echo "$notes" | tr -d '[:space:]')" ]; then
+            gh release create "$tag" "${files[@]}" \
+              --repo "${{ github.repository }}" \
+              --title "CloakClip ${tag#v}" \
+              --notes "$notes"
           else
             gh release create "$tag" "${files[@]}" \
               --repo "${{ github.repository }}" \

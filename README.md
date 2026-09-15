@@ -114,6 +114,18 @@ The scheme is AES-256-CBC with the key derived as SHA-256 of the password, a ran
 
 Every push builds both platforms on GitHub Actions — grab `CloakClip.exe`, `CloakClipSetup-<version>.exe` or `CloakClip-macos.zip` from the run's **Artifacts**. Pushing a version tag (`v1.0.0`) also publishes a Release with all of them attached, plus `CloakClip-checksums.txt` (SHA-256), since the downloads are unsigned.
 
+The tag's own message becomes the release notes. Bump `appVersion` in `src/cloakClip/appConfig.py` and `version` in `pyproject.toml` first: the installer name and the About box come from it, and the workflow does not check that the tag matches. The version the docs site shows is updated once the release exists, so the site never names a file the release does not have yet.
+
+```powershell
+git tag -a v1.0.3 -m "What changed in this release" ; git push origin v1.0.3
+```
+
+`git tag` deletes lines starting with `#` by default, so if the notes use Markdown headings, write them to a file and tag with `--cleanup=whitespace` instead:
+
+```powershell
+git tag -a v1.0.3 --cleanup=whitespace -F notes.md ; git push origin v1.0.3
+```
+
 Windows gets two downloads of the same app:
 
 - **`CloakClipSetup-<version>.exe`** — the installer. Per-user, so no administrator rights; it adds a Start menu entry, an optional desktop shortcut, and an entry in *Add or Remove Programs*. Uninstalling removes the app but leaves your settings and remembered passwords in `%APPDATA%\CloakClip` — use **Password > Clear Password History** first if you want those gone too.
